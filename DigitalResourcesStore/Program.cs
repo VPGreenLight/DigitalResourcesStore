@@ -1,5 +1,9 @@
 ﻿using DigitalResourcesStore.EntityFramework;
+using DigitalResourcesStore.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,8 +22,28 @@ builder.Services.AddDbContext<DigitalResourcesStoreDbContext>(options =>
 // Thêm config cho SQL Server
 builder.Services.AddDbConfig(builder.Configuration);
 
+// Thêm JWT Token 
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"]))
+    };
+});
+
 // Thêm config các service phục vụ cho controller
-//builder.Services.AddServiceCollections();
+builder.Services.AddServiceCollections();
 
 var app = builder.Build();
 

@@ -1,1 +1,1 @@
-﻿global using DigitalResourcesStore.Models;
+﻿
