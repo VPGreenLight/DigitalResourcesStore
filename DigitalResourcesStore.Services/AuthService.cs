@@ -47,7 +47,10 @@ namespace DigitalResourcesStore.Services
             {
                 throw new UnauthorizedAccessException("Invalid credentials");
             }
-
+            if (model.Password != model.ConfirmPassword)
+            {
+                throw new ArgumentException("Mật khẩu và xác nhận mật khẩu không trùng khớp.");
+            }
             var token = GenerateJwtToken(model.UserName, "User");
             User user = new User()
             {
