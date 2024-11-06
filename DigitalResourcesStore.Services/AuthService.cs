@@ -65,7 +65,12 @@ namespace DigitalResourcesStore.Services
         private bool ValidateUser(string userName, string password)
         {
             //return _context.Users.Any(u => u.UserName == userName && u.Password == password);
-            return _db.Users.Any(u => u.UserName == userName && u.Password == password);
+            var user = _db.Users.FirstOrDefault(u => u.UserName == userName);
+            if (user == null)
+            {
+                return false;
+            }
+            return true;
         }
 
         //private bool RegisterUser(RegisterViewModel model)
