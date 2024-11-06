@@ -1,6 +1,0 @@
-@DigitalResourcesStore_HostAddress = http://localhost:5073
-
-GET {{DigitalResourcesStore_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
