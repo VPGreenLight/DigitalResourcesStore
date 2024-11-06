@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using DigitalResourcesStore.EntityFramework.Models;
 namespace DigitalResourcesStore.Services
 {
     public interface IAuthService
@@ -26,12 +27,15 @@ namespace DigitalResourcesStore.Services
         {
             // Placeholder for user verification logic (e.g., database lookup).
             // Assume user verification is successful for this example.
-            var isValidUser = ValidateUser(model.userName, model.Password);
-            if (!isValidUser)
+            var user = await _db.Users.Include(u => u.Role)
+                                      .FirstOrDefaultAsync(u => u.UserName == model.userName && u.Password == model.Password);
+            if (user == null)
             {
                 throw new UnauthorizedAccessException("Invalid credentials");
             }
-            var token = GenerateJwtToken(model.userName, "User");
+            string role = user.RoleId == 1 ? "Admin" : "User";
+            var token = GenerateJwtToken(model.userName, role);
+
             return new LoginResponseViewModel
             {
                 UserInformation = "User information as JSON",
@@ -54,15 +58,7 @@ namespace DigitalResourcesStore.Services
         //        Expires = DateTime.UtcNow.AddHours(1)
         //    };
         //}
-        private bool ValidateUser(string userName, string password)
-        {
-            var user = _db.Users.FirstOrDefault(u => u.UserName == userName);
-            if (user == null)
-            {
-                return false;
-            }
-            return true;
-        }
+
         //private bool RegisterUser(RegisterViewModel model)
         //{
         //    return true;
