@@ -22,5 +22,14 @@ namespace DigitalResourcesStore.Controllers
 
             return Ok(result);
         }
+        [HttpPost("register")]
+        public async Task<IActionResult> Register(RegisterViewModel model)
+        {
+            var result = await _authService.RegisterAsync(model);
+            if (result == null)
+                return BadRequest("Registration failed");
+
+            return Ok(result);
+        }
     }
 }
