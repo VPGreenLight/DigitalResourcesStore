@@ -1,5 +1,6 @@
 ﻿using DigitalResourcesStore.Models.AuthDtos;
 using DigitalResourcesStore.Services;
+
 using Microsoft.AspNetCore.Mvc;
 
 namespace DigitalResourcesStore.Controllers
@@ -19,6 +20,15 @@ namespace DigitalResourcesStore.Controllers
             var result = await _authService.LoginAsync(model);
             if (result == null)
                 return Unauthorized("Invalid credentials");
+
+            return Ok(result);
+        }
+        [HttpPost("register")]
+        public async Task<IActionResult> Register(RegisterViewModel model)
+        {
+            var result = await _authService.RegisterAsync(model);
+            if (result == null)
+                return BadRequest("Registration failed");
 
             return Ok(result);
         }
