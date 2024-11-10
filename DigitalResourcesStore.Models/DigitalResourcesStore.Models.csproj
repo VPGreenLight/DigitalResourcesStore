@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Folder Include="AuthDtos\CategoryDtos\" />
     <Folder Include="OrderDtos\" />
     <Folder Include="UserDtos\" />
   </ItemGroup>

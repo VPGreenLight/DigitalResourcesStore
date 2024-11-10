@@ -10,6 +10,9 @@ namespace DigitalResourcesStore.Services
             // Import các service vào hệ thống theo cấu trúc đã cho
             service.AddScoped<IAuthService, AuthService>();
             service.AddScoped<IProductService, ProductService>();
+            service.AddScoped<IProductDetailService, ProductDetailService>();
+            service.AddScoped<ICategoryService, CategoryService>();
+            service.AddScoped<IBrandService, BrandService>();
         }
     }
 }
