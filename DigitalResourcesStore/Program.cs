@@ -22,6 +22,17 @@ builder.Services.AddDbContext<DigitalResourcesStoreDbContext>(options =>
 // Thêm config cho SQL Server
 builder.Services.AddDbConfig(builder.Configuration);
 
+// Register Captcha Service and Session support
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<CaptchaService>();
+builder.Services.AddDistributedMemoryCache();
+
+// Enable session middleware
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+});
+
 // Thêm JWT Token 
 builder.Services.AddAuthentication(options =>
 {
@@ -47,12 +58,15 @@ builder.Services.AddServiceCollections();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-//if (app.Environment.IsDevelopment())
-//{
-    app.UseSwagger();
+//Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+app.UseSwagger();
     app.UseSwaggerUI();
-//}
+}
+app.UseSession();
+app.UseHttpsRedirection();
+app.UseCors("AllowAngularApp");
 
 app.UseHttpsRedirection();
 
