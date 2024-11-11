@@ -11,8 +11,10 @@ namespace DigitalResourcesStore.Services
             service.AddScoped<IAuthService, AuthService>();
             service.AddScoped<IUserService, UserService>();
             service.AddScoped<IProductService, ProductService>();
+            service.AddScoped<IProductDetailService, ProductDetailService>();
+            service.AddScoped<ICategoryService, CategoryService>();
+            service.AddScoped<IBrandService, BrandService>();
             service.AddScoped<ICaptchaService, CaptchaService>();
-
         }
     }
 }

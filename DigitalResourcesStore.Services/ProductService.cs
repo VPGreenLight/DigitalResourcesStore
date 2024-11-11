@@ -45,7 +45,7 @@ namespace DigitalResourcesStore.Services
 
             return new ProductDtos
             {
-                //Id = product.Id,
+                Id = product.Id,
                 Name = product.Name,
                 Image = product.Image,
                 Expiry = DateTime.UtcNow,
