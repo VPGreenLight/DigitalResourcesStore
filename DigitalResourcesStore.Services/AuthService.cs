@@ -7,6 +7,8 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using DigitalResourcesStore.EntityFramework.Models;
+using System.Security.Cryptography;
+using Newtonsoft.Json;
 namespace DigitalResourcesStore.Services
 {
     public interface IAuthService
@@ -27,19 +29,25 @@ namespace DigitalResourcesStore.Services
         {
             // Placeholder for user verification logic (e.g., database lookup).
             // Assume user verification is successful for this example.
-            var isValidUser = ValidateUser(model.userName, model.Password);
-            if (!isValidUser)
+            var hashedPassword = GetMD5(model.Password);
+            var user = await _db.Users.Include(u => u.Role)
+                                      .FirstOrDefaultAsync(u => u.UserName == model.userName && u.Password == hashedPassword);
+
+            if (user == null)
             {
                 throw new UnauthorizedAccessException("Invalid credentials");
             }
-            var token = GenerateJwtToken(model.userName, "User");
+            string role = user.RoleId == 1 ? "Admin" : "User";
+            var token = GenerateJwtToken(model.userName, role);
+
             return new LoginResponseViewModel
             {
-                UserInformation = "User information as JSON",
+                UserInformation = JsonConvert.SerializeObject(user),
                 Token = token,
-                Expires = DateTime.UtcNow.AddHours(1)
+                Expires = DateTime.UtcNow.AddMinutes(30)
             };
         }
+
         public async Task<LoginResponseViewModel> RegisterAsync(RegisterViewModel model)
         {
             bool isRegistered = RegisterUser(model);
@@ -52,11 +60,12 @@ namespace DigitalResourcesStore.Services
                 throw new ArgumentException("Mật khẩu và xác nhận mật khẩu không trùng khớp.");
             }
             var token = GenerateJwtToken(model.UserName, "User");
+            var hashedPassword = GetMD5(model.Password);
             User user = new User()
             {
                 UserName = model.UserName,
                 Email = model.Email,
-                Password = model.Password,
+                Password = hashedPassword,
                 Name = model.Name,
                 Phone = model.Phone,
                 Address = model.Address,
@@ -74,9 +83,24 @@ namespace DigitalResourcesStore.Services
             {
                 UserInformation = "User information as JSON",
                 Token = token,
-                Expires = DateTime.UtcNow.AddHours(1)
+                Expires = DateTime.UtcNow.AddMinutes(30)
             };
         }
+
+        public static string GetMD5(string password)
+        {
+            MD5 md5 = new MD5CryptoServiceProvider();
+            byte[] fromData = Encoding.UTF8.GetBytes(password);
+            byte[] targetData = md5.ComputeHash(fromData);
+            StringBuilder byte2String = new StringBuilder();
+
+            for (int i = 0; i < targetData.Length; i++)
+            {
+                byte2String.Append(targetData[i].ToString("x2"));
+            }
+            return byte2String.ToString();
+        }
+
         private bool ValidateUser(string userName, string password)
         {
             var user = _db.Users.FirstOrDefault(u => u.UserName == userName);

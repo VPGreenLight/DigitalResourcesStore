@@ -9,11 +9,12 @@ namespace DigitalResourcesStore.Services
         {
             // Import các service vào hệ thống theo cấu trúc đã cho
             service.AddScoped<IAuthService, AuthService>();
+            service.AddScoped<IUserService, UserService>();
             service.AddScoped<IProductService, ProductService>();
             service.AddScoped<IProductDetailService, ProductDetailService>();
             service.AddScoped<ICategoryService, CategoryService>();
             service.AddScoped<IBrandService, BrandService>();
+            service.AddScoped<ICaptchaService, CaptchaService>();
         }
     }
 }
-//hải bm có service méo đâu thế khả năng m chưa push lên hoặc sao đó nên git kh lưu
