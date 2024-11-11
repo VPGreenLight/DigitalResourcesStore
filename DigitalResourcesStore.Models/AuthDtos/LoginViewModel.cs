@@ -14,5 +14,8 @@ namespace DigitalResourcesStore.Models.AuthDtos
 
         [Required]
         public string Password { get; set; }
+
+        [Required]
+        public string Captcha { get; set; }
     }
 }
