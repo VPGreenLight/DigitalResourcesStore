@@ -89,7 +89,6 @@ namespace DigitalResourcesStore.Services
 
         public static string GetMD5(string password)
         {
-        {  
             MD5 md5 = new MD5CryptoServiceProvider();
             byte[] fromData = Encoding.UTF8.GetBytes(password);
             byte[] targetData = md5.ComputeHash(fromData);
