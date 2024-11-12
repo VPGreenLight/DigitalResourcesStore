@@ -65,7 +65,7 @@ namespace DigitalResourcesStore.Services
             {
                 UserName = model.UserName,
                 Email = model.Email,
-                Password = hashedPassword,
+                Password = hashedPassword,  
                 Name = model.Name,
                 Phone = model.Phone,
                 Address = model.Address,
@@ -89,6 +89,7 @@ namespace DigitalResourcesStore.Services
 
         public static string GetMD5(string password)
         {
+        {  
             MD5 md5 = new MD5CryptoServiceProvider();
             byte[] fromData = Encoding.UTF8.GetBytes(password);
             byte[] targetData = md5.ComputeHash(fromData);
@@ -100,7 +101,7 @@ namespace DigitalResourcesStore.Services
             }
             return byte2String.ToString();
         }
-
+          
         private bool ValidateUser(string userName, string password)
         {
             var user = _db.Users.FirstOrDefault(u => u.UserName == userName);
