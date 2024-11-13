@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using DigitalResourcesStore.EntityFramework.Models;
 using QuizApp.Models;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace DigitalResourcesStore.Services
 {
@@ -15,7 +17,7 @@ namespace DigitalResourcesStore.Services
         Task<bool> Create(CreatedUserDto request);
         Task<bool> Update(int id, UpdatedUserDto request);
         Task<bool> Delete(int id);
-        //Task<bool> ChangePassword(int userId, ChangePasswordDto changePasswordDto);
+        Task<bool> ChangePassword(int userId, ChangePasswordDto model);
     }
 
     public class UserService : IUserService
@@ -104,7 +106,7 @@ namespace DigitalResourcesStore.Services
                 Name = viewModel.Name,
                 Email = viewModel.Email,
                 UserName = viewModel.UserName,
-                Password = viewModel.Password,
+                Password = GetMD5(viewModel.Password),
                 Phone = viewModel.Phone,
                 Address = viewModel.Address,
                 IsActive = viewModel.IsActive,
@@ -150,18 +152,45 @@ namespace DigitalResourcesStore.Services
             return await _context.SaveChangesAsync() > 0;
         }
 
-        //public async Task<bool> ChangePassword(int userId, ChangePasswordDto changePasswordDto)
-        //{
-        //    var user = await _context.Users.FindAsync(userId);
-        //    if (user == null) return false;
+        public async Task<bool> ChangePassword(int userId, ChangePasswordDto model)
+        {
+            // Kiểm tra xác nhận mật khẩu mới
+            if (model.NewPassword != model.ConfirmNewPassword)
+            {
+                throw new ArgumentException("Mật khẩu xác nhận không khớp.");
+            }
 
-        //    if (user.Phone != changePasswordDto.CurrentPassword)
-        //        return false;
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                throw new ArgumentException("Người dùng không tồn tại.");
+            }
 
-        //    user.Phone = changePasswordDto.NewPassword;
+            // Kiểm tra mật khẩu hiện tại
+            if (user.Password != GetMD5(model.CurrentPassword))
+            {
+                throw new ArgumentException("Mật khẩu hiện tại không đúng.");
+            }
 
-        //    _context.Users.Update(user);
-        //    return await _context.SaveChangesAsync() > 0;
-        //}
+            // Cập nhật mật khẩu mới
+            user.Password = GetMD5(model.NewPassword);
+            user.UpdatedAt = DateTime.Now;
+
+            _context.Users.Update(user);
+            return await _context.SaveChangesAsync() > 0;
+        }
+        public static string GetMD5(string password)
+        {
+            MD5 md5 = new MD5CryptoServiceProvider();
+            byte[] fromData = Encoding.UTF8.GetBytes(password);
+            byte[] targetData = md5.ComputeHash(fromData);
+            StringBuilder byte2String = new StringBuilder();
+
+            for (int i = 0; i < targetData.Length; i++)
+            {
+                byte2String.Append(targetData[i].ToString("x2"));
+            }
+            return byte2String.ToString();
+        }
     }
 }

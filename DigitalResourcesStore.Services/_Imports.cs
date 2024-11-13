@@ -15,6 +15,7 @@ namespace DigitalResourcesStore.Services
             service.AddScoped<ICategoryService, CategoryService>();
             service.AddScoped<IBrandService, BrandService>();
             service.AddScoped<ICaptchaService, CaptchaService>();
+            service.AddScoped<IDashboardService, DashboardService>();
         }
     }
 }
