@@ -21,6 +21,9 @@ namespace DigitalResourcesStore.Services
             service.AddScoped<IVnPayService, VnPayService>();
             service.AddScoped<IDepositService, DepositService>();
             service.AddScoped<IUserService, UserService>();
+            service.AddScoped<IDashboardService, DashboardService>();
+            service.AddScoped<IUserFavoriteService, UserFavoriteService>();
+            service.AddScoped<ISupportService, SupportService>();
         }
     }
 }
