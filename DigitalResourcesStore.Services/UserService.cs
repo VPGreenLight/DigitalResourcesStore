@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using DigitalResourcesStore.EntityFramework.Models;
 using QuizApp.Models;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace DigitalResourcesStore.Services
 {
@@ -15,7 +17,8 @@ namespace DigitalResourcesStore.Services
         Task<bool> Create(CreatedUserDto request);
         Task<bool> Update(int id, UpdatedUserDto request);
         Task<bool> Delete(int id);
-        //Task<bool> ChangePassword(int userId, ChangePasswordDto changePasswordDto);
+        Task<bool> UpdateUserBalance(int userId, decimal amount);
+        Task<bool> ChangePassword(int userId, ChangePasswordDto model);
     }
 
     public class UserService : IUserService
@@ -104,7 +107,7 @@ namespace DigitalResourcesStore.Services
                 Name = viewModel.Name,
                 Email = viewModel.Email,
                 UserName = viewModel.UserName,
-                Password = viewModel.Password,
+                Password = GetMD5(viewModel.Password),
                 Phone = viewModel.Phone,
                 Address = viewModel.Address,
                 IsActive = viewModel.IsActive,
@@ -149,19 +152,74 @@ namespace DigitalResourcesStore.Services
             _context.Users.Update(user);
             return await _context.SaveChangesAsync() > 0;
         }
+        public async Task<bool> UpdateUserBalance(int userId, decimal amount)
+        {
+            // Retrieve the user from the database
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
-        //public async Task<bool> ChangePassword(int userId, ChangePasswordDto changePasswordDto)
-        //{
-        //    var user = await _context.Users.FindAsync(userId);
-        //    if (user == null) return false;
+            if (user == null)
+            {
+                // Return false if the user does not exist
+                return false;
+            }
 
-        //    if (user.Phone != changePasswordDto.CurrentPassword)
-        //        return false;
+            // Update the user's balance
+            user.Money += amount;
 
-        //    user.Phone = changePasswordDto.NewPassword;
+            try
+            {
+                // Save changes to the database
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                // Log exception if necessary, then return false
+                return false;
+            }
+        }
 
-        //    _context.Users.Update(user);
-        //    return await _context.SaveChangesAsync() > 0;
-        //}
+        public async Task<bool> ChangePassword(int userId, ChangePasswordDto model)
+        {
+            // Kiểm tra xác nhận mật khẩu mới
+            if (model.NewPassword != model.ConfirmNewPassword)
+            {
+                throw new ArgumentException("Mật khẩu xác nhận không khớp.");
+            }
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                throw new ArgumentException("Người dùng không tồn tại.");
+            }
+
+            // Kiểm tra mật khẩu hiện tại
+            if (user.Password != GetMD5(model.CurrentPassword))
+            {
+                throw new ArgumentException("Mật khẩu hiện tại không đúng.");
+            }
+
+            // Cập nhật mật khẩu mới
+            user.Password = GetMD5(model.NewPassword);
+            user.UpdatedAt = DateTime.Now;
+
+            _context.Users.Update(user);
+            return await _context.SaveChangesAsync() > 0;
+        }
+        public static string GetMD5(string password)
+        {
+            MD5 md5 = new MD5CryptoServiceProvider();
+            byte[] fromData = Encoding.UTF8.GetBytes(password);
+            byte[] targetData = md5.ComputeHash(fromData);
+            StringBuilder byte2String = new StringBuilder();
+
+            for (int i = 0; i < targetData.Length; i++)
+            {
+                byte2String.Append(targetData[i].ToString("x2"));
+            }
+            return byte2String.ToString();
+        }
+
     }
 }

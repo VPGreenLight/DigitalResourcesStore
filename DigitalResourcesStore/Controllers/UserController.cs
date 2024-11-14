@@ -48,10 +48,10 @@ namespace DigitalResourcesStore.Controllers
             return await _userService.Delete(id);
         }
 
-        //[HttpPost("{id}/changePassword")]
-        //public async Task<ActionResult<bool>> ChangePassword(int id, [FromBody] ChangePasswordDto request)
-        //{
-        //    return await _userService.ChangePassword(id, request);
-        //}
+        [HttpPost("{id}/changePassword")]
+        public async Task<ActionResult<bool>> ChangePassword(int id, [FromBody] ChangePasswordDto request)
+        {
+            return await _userService.ChangePassword(id, request);
+        }
     }
 }
