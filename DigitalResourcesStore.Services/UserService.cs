@@ -15,6 +15,7 @@ namespace DigitalResourcesStore.Services
         Task<bool> Create(CreatedUserDto request);
         Task<bool> Update(int id, UpdatedUserDto request);
         Task<bool> Delete(int id);
+        Task<bool> UpdateUserBalance(int userId, decimal amount);
         //Task<bool> ChangePassword(int userId, ChangePasswordDto changePasswordDto);
     }
 
@@ -148,6 +149,33 @@ namespace DigitalResourcesStore.Services
 
             _context.Users.Update(user);
             return await _context.SaveChangesAsync() > 0;
+        }
+        public async Task<bool> UpdateUserBalance(int userId, decimal amount)
+        {
+            // Retrieve the user from the database
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+            {
+                // Return false if the user does not exist
+                return false;
+            }
+
+            // Update the user's balance
+            user.Money += amount;
+
+            try
+            {
+                // Save changes to the database
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                // Log exception if necessary, then return false
+                return false;
+            }
         }
 
         //public async Task<bool> ChangePassword(int userId, ChangePasswordDto changePasswordDto)

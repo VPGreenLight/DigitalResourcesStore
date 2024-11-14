@@ -53,6 +53,7 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+builder.Services.AddHttpContextAccessor();
 // Thêm config các service phục vụ cho controller
 builder.Services.AddServiceCollections();
 
