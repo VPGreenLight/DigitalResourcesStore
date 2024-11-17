@@ -18,6 +18,7 @@ namespace DigitalResourcesStore.Services
     {
         Task<LoginResponseViewModel> LoginAsync(LoginViewModel loginViewModel);
         Task<LoginResponseViewModel> RegisterAsync(RegisterViewModel registerViewModel);
+        string GetUserIdFromToken(string token);
     }
 
     public class AuthService : IAuthService
@@ -37,35 +38,18 @@ namespace DigitalResourcesStore.Services
         public async Task<LoginResponseViewModel> LoginAsync(LoginViewModel model)
         {
             var hashedPassword = GetMD5(model.Password);
-            var user = await _db.Users.Include(u => u.Role)
-                                          .FirstOrDefaultAsync(u => u.UserName == model.userName && u.Password == hashedPassword);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserName == model.UserName && u.Password == hashedPassword);
 
             if (user == null)
             {
-                throw new UnauthorizedAccessException("Invalid credentials");
+                throw new UnauthorizedAccessException("Sai thông tin người dùng");
             }
 
             string role = user.RoleId == 1 ? "Admin" : "User";
-
-            // Use IHttpContextAccessor to access the session
-            _httpContextAccessor.HttpContext.Session.SetInt32("User", user.Id);
-
-            var token = GenerateJwtToken(model.userName, role);
-
-            var userLoginDto = new UserLoginDto
-            {
-                Id = user.Id,
-                UserName = user.UserName,
-                Email = user.Email,
-                Phone = user.Phone,
-                RoleName = user.Role.Name,
-                Money = user.Money.HasValue ? (decimal)user.Money.Value : 0,
-                VipRank = user.VipRank
-            };
+            var token = GenerateJwtToken(user.Id);
 
             return new LoginResponseViewModel
             {
-                UserInformation = userLoginDto,
                 Token = token,
                 Expires = DateTime.UtcNow.AddMinutes(30)
             };
@@ -78,13 +62,12 @@ namespace DigitalResourcesStore.Services
                 throw new ArgumentException("Mật khẩu và xác nhận mật khẩu không trùng khớp.");
             }
 
-            bool isRegistered = await _db.Users.AnyAsync(u => u.UserName == model.UserName || u.Email == model.Email);
-            if (isRegistered)
+            var userRegistered = await _db.Users.FirstOrDefaultAsync(u => u.UserName == model.UserName || u.Email == model.Email);
+            if (userRegistered != null)
             {
                 throw new UnauthorizedAccessException("Người dùng đã tồn tại với tên đăng nhập hoặc email này.");
             }
 
-            var token = GenerateJwtToken(model.UserName, "User");
             var hashedPassword = GetMD5(model.Password);
 
             var user = new User
@@ -104,20 +87,11 @@ namespace DigitalResourcesStore.Services
             await _db.Users.AddAsync(user);
             await _db.SaveChangesAsync();
 
-            var userLoginDto = new UserLoginDto
-            {
-                Id = user.Id,
-                UserName = user.UserName,
-                Email = user.Email,
-                Phone = user.Phone,
-                RoleName = "User",
-                Money = user.Money ?? 0,
-                VipRank = user.VipRank
-            };
+            var userId = user.Id;
+            var token = GenerateJwtToken(userId);
 
             return new LoginResponseViewModel
             {
-                UserInformation = userLoginDto,
                 Token = token,
                 Expires = DateTime.UtcNow.AddMinutes(30)
             };
@@ -137,25 +111,78 @@ namespace DigitalResourcesStore.Services
             return byte2String.ToString();
         }
 
-        private string GenerateJwtToken(string username, string role)
+        private string GenerateJwtToken(int id)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:SecretKey"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var claims = new[] {
-                new Claim(JwtRegisteredClaimNames.Sub, username),
-                new Claim(ClaimTypes.Role, role),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
+            var expiryMinutes = Convert.ToInt32(_config["Jwt:ExpiryInMinutes"]);
 
+            // Claims không cần chứa "exp"
+            var claims = new[]
+            {
+               new Claim(ClaimTypes.NameIdentifier, id.ToString())
+             };
+
+            // Tạo token với expires được cấu hình chính xác
             var token = new JwtSecurityToken(
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(int.Parse(_config["Jwt:ExpiryInMinutes"])),
+                expires: DateTime.UtcNow.AddMinutes(expiryMinutes), // Thời gian hết hạn
                 signingCredentials: creds
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+        public ClaimsPrincipal DecodeJwtToken(string token)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_config["Jwt:SecretKey"]);
+            var jwtToken = tokenHandler.ReadJwtToken(token);
+
+            Console.WriteLine("Token payload:");
+            foreach (var kvp in jwtToken.Payload)
+            {
+                Console.WriteLine($"{kvp.Key}: {kvp.Value}");
+            }
+            // Cấu hình các tham số xác thực token
+            var validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = _config["Jwt:Issuer"],
+
+                ValidateAudience = true,
+                ValidAudience = _config["Jwt:Audience"],
+
+                ValidateLifetime = true, // Kiểm tra thời hạn token
+                ClockSkew = TimeSpan.FromMinutes(5), // Cho phép lệch thời gian nhỏ
+
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:SecretKey"]))
+            };
+
+            try
+            {
+                // Xác thực và giải mã token
+                var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
+                return principal;
+            }
+            catch (Exception ex)
+            {
+                // Xử lý lỗi khi token không hợp lệ
+                Console.WriteLine($"Token không hợp lệ: {ex.Message}");
+                Console.WriteLine($"Chi tiết lỗi: {ex.StackTrace}");
+                return null;
+            }
+        }
+        public string GetUserIdFromToken(string token)
+        {
+            var principal = DecodeJwtToken(token);
+            if (principal == null) return null;
+
+            // Lấy claim Id của người dùng từ token (nếu có)
+            var userIdClaim = principal.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+            return userIdClaim?.Value;
         }
     }
 }

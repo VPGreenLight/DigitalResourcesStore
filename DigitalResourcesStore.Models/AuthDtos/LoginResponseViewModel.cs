@@ -9,7 +9,6 @@ namespace DigitalResourcesStore.Models.AuthDtos
 {
     public class LoginResponseViewModel
     {
-        public UserLoginDto UserInformation { get; set; }
         public string Token { get; set; }
         public DateTime Expires { get; set; }
     }

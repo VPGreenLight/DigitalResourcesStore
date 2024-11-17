@@ -3,6 +3,9 @@ using DigitalResourcesStore.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using System.Linq;
+using DigitalResourcesStore.Helper;
+
 
 namespace DigitalResourcesStore.Controllers
 {
@@ -21,32 +24,72 @@ namespace DigitalResourcesStore.Controllers
             _orderService = orderService;
         }
 
-        [HttpPost("add")]
-        public async Task<IActionResult> AddToCart(int productId, int quantity)
+        [HttpPost("buy")]
+        public async Task<IActionResult> Buy(int productId, int quantity = 1)
+        {
+            var result = await _cartService.Buy(HttpContext, productId, quantity);
+            return result;
+        }
+        [HttpGet("cart-details")]
+        public async Task<IActionResult> GetCartDetails()
         {
             var userId = HttpContext.Session.GetInt32("User");
             if (userId == null)
             {
-                return Unauthorized("User not logged in.");
+                return Unauthorized(new { message = "User not logged in." });
             }
 
-            await _cartService.AddToCart(HttpContext, productId, quantity);
+            var cart = await _cartService.GetCartDetails(userId.Value);
 
-            // Get updated cart details
-            var cartItems = _cartService.GetCartItems(HttpContext);
-            var totalQuantity = cartItems.Sum(item => item.Quantity);
-            var totalPrice = _cartService.GetCartTotal(HttpContext);
-
-                   return Ok(new
+            if (cart == null || !cart.Any())
             {
-                Message = "Product added to cart successfully.",
-                CartSummary = new
-                {
-                    TotalItems = totalQuantity,
-                    TotalPrice = totalPrice,
-                    Items = cartItems
-                }
+                return NotFound(new { message = "No items found in the cart." });
+            }
+
+            var total = cart.Sum(item => item.Price * item.Quantity);
+            var uniqueProductCount = cart.Select(item => item.ProductId).Distinct().Count();
+
+            return Ok(new
+            {
+                CartItems = cart,
+                TotalItems = uniqueProductCount,
+                TotalPrice = total
             });
+        }
+
+        [HttpPost("remove")]
+        public async Task<IActionResult> Remove(int productId)
+        {
+            var result = await _cartService.RemoveFromCart(HttpContext, productId);
+            return result;
+        }
+
+        [HttpPost("increase-quantity")]
+        public async Task<IActionResult> IncreaseQuantity(int productId)
+        {
+            var result = await _cartService.IncreaseQuantity(HttpContext, productId);
+            return result;
+        }
+
+        [HttpPost("decrease-quantity")]
+        public async Task<IActionResult> DecreaseQuantity(int productId)
+        {
+            var result = await _cartService.DecreaseQuantity(HttpContext, productId);
+            return result;
+        }
+
+        [HttpPost("apply-voucher")]
+        public async Task<IActionResult> ApplyVoucher(string code)
+        {
+            var result = await _cartService.ApplyVoucher(HttpContext, code);
+            return result;
+        }
+
+        [HttpPost("checkout")]
+        public async Task<IActionResult> CheckOut()
+        {
+            var result = await _cartService.CheckOutAsync(HttpContext);
+            return result;
         }
 
 
