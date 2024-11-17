@@ -16,7 +16,6 @@ namespace DigitalResourcesStore.Services
             service.AddScoped<IBrandService, BrandService>();
             service.AddScoped<ICaptchaService, CaptchaService>();
             service.AddScoped<ICartService, CartService>();
-            service.AddScoped<IOrderService, OrderService>();
             //service.AddScoped<IVIPService, VIPService>();
             service.AddScoped<IVnPayService, VnPayService>();
             service.AddScoped<IDepositService, DepositService>();
@@ -24,7 +23,6 @@ namespace DigitalResourcesStore.Services
             service.AddScoped<IDashboardService, DashboardService>();
             service.AddScoped<IUserFavoriteService, UserFavoriteService>();
             service.AddScoped<ISupportService, SupportService>();
-            service.AddScoped<IBackgroundTaskQueue, BackgroundTaskQueue>();
         }
     }
 }

@@ -1,6 +1,5 @@
 ﻿using DigitalResourcesStore.EntityFramework.Models;
 using DigitalResourcesStore.Models.CartsDtos;
-using DigitalResourcesStore.Services.Queue;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,8 +16,9 @@ namespace DigitalResourcesStore.Services
 {
     public interface ICartService
     {
-        List<CartItemDto> GetCartItems(HttpContext httpContext);
-        Task<List<CartItemDto>> GetCartDetails(int userId);
+        Task<JsonResult> Buy(HttpContext httpContext, int productId, int quantity);
+        List<CartItemDto> GetCartItems(int userId);
+        Task<CartDto> GetCartDetails(int userId);
 
         Task<JsonResult> RemoveFromCart(HttpContext httpContext, int productId);
         Task<JsonResult> IncreaseQuantity(HttpContext httpContext, int productId);
@@ -26,30 +26,60 @@ namespace DigitalResourcesStore.Services
         Task<JsonResult> ApplyVoucher(HttpContext httpContext, string code);
         Task<JsonResult> CheckOutAsync(HttpContext httpContext);
         Task ProcessOrderAsync(int userId, List<CartItemDto> cart, decimal discountedTotal, CancellationToken cancellationToken);
-
-        decimal GetCartTotal(HttpContext httpContext);
         Task PopulateCartItemDetails(CartItemDto cartItem);
-        Task<JsonResult> Buy(HttpContext httpContext, int productId, int quantity);
     }
     public class CartService : ICartService
     {
         private readonly DigitalResourcesStoreDbContext _dbContext;
         private readonly ILogger<CartService> _logger;
-        private readonly IBackgroundTaskQueue _taskQueue;
+        private readonly IAuthService _authService; // Service để xử lý token và lấy userId từ token
 
-        public CartService(DigitalResourcesStoreDbContext dbContext, ILogger<CartService> logger, IBackgroundTaskQueue taskQueue)
+        public CartService(DigitalResourcesStoreDbContext dbContext, ILogger<CartService> logger, IAuthService authService)
         {
             _dbContext = dbContext;
             _logger = logger;
-            _taskQueue = taskQueue;
+            _authService = authService;
         }
 
-        public List<CartItemDto> GetCartItems(HttpContext httpContext) =>
-            SessionHelper.GetObjectFromJson<List<CartItemDto>>(httpContext.Session, "cart");
+        private string GetUserIdFromToken(HttpRequest request)
+        {
+            var authHeader = request.Headers["Authorization"].ToString();
+            var token = authHeader?.Replace("Bearer ", "");
+            if (string.IsNullOrEmpty(token))
+            {
+                throw new UnauthorizedAccessException("Token không tồn tại.");
+            }
+
+            var userId = _authService.GetUserIdFromToken(token);
+            if (string.IsNullOrEmpty(userId))
+            {
+                throw new UnauthorizedAccessException("Token không hợp lệ hoặc hết hạn.");
+            }
+
+            return userId;
+        }
+
+        public List<CartItemDto> GetCartItems(int userId)
+        {
+            return _dbContext.Orders
+                .Include(o => o.Product)
+                .Where(o => o.UserId == userId && o.Product != null)
+                .Select(o => new CartItemDto
+                {
+                    ProductId = o.ProductId.Value,
+                    ProductName = o.Product.Name,
+                    Price = o.Product.Price,
+                    Image = o.Product.Image,
+                    Quantity = o.Quantity.Value
+                })
+                .ToList();
+        }
 
         public async Task<JsonResult> Buy(HttpContext httpContext, int productId, int quantity)
         {
+            var userId = GetUserIdFromToken(httpContext.Request);
             var product = await _dbContext.Products.FindAsync(productId);
+
             if (product == null)
             {
                 return new JsonResult(new { success = false, message = "Sản phẩm không tồn tại." });
@@ -60,13 +90,7 @@ namespace DigitalResourcesStore.Services
                 return new JsonResult(new { success = false, message = "Số lượng mua vượt quá số lượng sản phẩm còn lại." });
             }
 
-            var userId = httpContext.Session.GetInt32("User");
-            if (userId == null)
-            {
-                return new JsonResult(new { success = false, message = "Bạn cần phải đăng nhập để mua hàng.", loginRequired = true });
-            }
-
-            var cart = GetCartItems(httpContext) ?? new List<CartItemDto>();
+            var cart = GetCartItems(int.Parse(userId));
 
             var cartItem = cart.FirstOrDefault(i => i.ProductId == productId);
             if (cartItem != null)
@@ -86,7 +110,7 @@ namespace DigitalResourcesStore.Services
 
             SessionHelper.SetObjectAsJson(httpContext.Session, "cart", cart);
 
-            var order = _dbContext.Orders.FirstOrDefault(o => o.UserId == userId && o.ProductId == productId);
+            var order = _dbContext.Orders.FirstOrDefault(o => o.UserId == int.Parse(userId) && o.ProductId == productId);
             if (order != null)
             {
                 order.Quantity += quantity;
@@ -95,7 +119,7 @@ namespace DigitalResourcesStore.Services
             {
                 order = new Order
                 {
-                    UserId = userId.Value,
+                    UserId = int.Parse(userId),
                     Quantity = quantity,
                     ProductId = productId
                 };
@@ -110,9 +134,9 @@ namespace DigitalResourcesStore.Services
             return new JsonResult(new { success = true, quantity = totalUniqueProducts });
         }
 
-        public async Task<List<CartItemDto>> GetCartDetails(int userId)
+        public async Task<CartDto> GetCartDetails(int userId)
         {
-            var cart = await _dbContext.Orders
+            var cartItems = await _dbContext.Orders
                 .Where(o => o.UserId == userId && o.Product != null)
                 .Select(o => new CartItemDto
                 {
@@ -124,12 +148,17 @@ namespace DigitalResourcesStore.Services
                 })
                 .ToListAsync();
 
-            return cart;
+            return new CartDto
+            {
+                Items = cartItems
+            };
         }
+
 
         public async Task<JsonResult> RemoveFromCart(HttpContext httpContext, int productId)
         {
-            var cart = GetCartItems(httpContext);
+            var userId = GetUserIdFromToken(httpContext.Request); // Lấy userId từ token
+            var cart = GetCartItems(int.Parse(userId));
             if (cart == null)
                 return new JsonResult(new { success = false, message = "Cart is empty." });
 
@@ -139,15 +168,12 @@ namespace DigitalResourcesStore.Services
                 cart.Remove(cartItem);
                 SessionHelper.SetObjectAsJson(httpContext.Session, "cart", cart);
 
-                var userId = httpContext.Session.GetInt32("User");
-                if (userId != null)
+                // Cập nhật cơ sở dữ liệu
+                var orderDetail = _dbContext.Orders.FirstOrDefault(od => od.UserId == int.Parse(userId) && od.ProductId == productId);
+                if (orderDetail != null)
                 {
-                    var orderDetail = _dbContext.Orders.FirstOrDefault(od => od.UserId == userId && od.ProductId == productId);
-                    if (orderDetail != null)
-                    {
-                        _dbContext.Orders.Remove(orderDetail);
-                        await _dbContext.SaveChangesAsync();
-                    }
+                    _dbContext.Orders.Remove(orderDetail);
+                    await _dbContext.SaveChangesAsync();
                 }
 
                 var total = cart.Sum(item => item.Price * item.Quantity);
@@ -160,6 +186,7 @@ namespace DigitalResourcesStore.Services
             return new JsonResult(new { success = false, message = "Item not found in cart." });
         }
 
+
         public async Task<JsonResult> IncreaseQuantity(HttpContext httpContext, int productId)
         {
             var product = await _dbContext.Products.FindAsync(productId);
@@ -168,7 +195,8 @@ namespace DigitalResourcesStore.Services
                 return new JsonResult(new { success = false, message = "Sản phẩm không tồn tại." });
             }
 
-            var cart = GetCartItems(httpContext);
+            var userId = GetUserIdFromToken(httpContext.Request);
+            var cart = GetCartItems(int.Parse(userId));
             if (cart == null)
             {
                 return new JsonResult(new { success = false, message = "Giỏ hàng trống." });
@@ -184,15 +212,11 @@ namespace DigitalResourcesStore.Services
                 cartItem.Quantity++;
 
                 // Cập nhật cơ sở dữ liệu
-                var userId = httpContext.Session.GetInt32("User");
-                if (userId != null)
+                var orderDetail = _dbContext.Orders.FirstOrDefault(od => od.UserId == int.Parse(userId) && od.ProductId == productId);
+                if (orderDetail != null)
                 {
-                    var orderDetail = _dbContext.Orders.FirstOrDefault(od => od.UserId == userId && od.ProductId == productId);
-                    if (orderDetail != null)
-                    {
-                        orderDetail.Quantity++;
-                        await _dbContext.SaveChangesAsync();
-                    }
+                    orderDetail.Quantity++;
+                    await _dbContext.SaveChangesAsync();
                 }
 
                 SessionHelper.SetObjectAsJson(httpContext.Session, "cart", cart);
@@ -206,9 +230,11 @@ namespace DigitalResourcesStore.Services
             return new JsonResult(new { success = false, message = "Sản phẩm không có trong giỏ hàng." });
         }
 
+
         public async Task<JsonResult> DecreaseQuantity(HttpContext httpContext, int productId)
         {
-            var cart = GetCartItems(httpContext);
+            var userId = GetUserIdFromToken(httpContext.Request);
+            var cart = GetCartItems(int.Parse(userId));
             if (cart == null)
             {
                 return new JsonResult(new { success = false, message = "Giỏ hàng trống." });
@@ -220,16 +246,13 @@ namespace DigitalResourcesStore.Services
                 cartItem.Quantity--;
 
                 // Cập nhật cơ sở dữ liệu
-                var userId = httpContext.Session.GetInt32("User");
-                if (userId != null)
+                var orderDetail = _dbContext.Orders.FirstOrDefault(od => od.UserId == int.Parse(userId) && od.ProductId == productId);
+                if (orderDetail != null)
                 {
-                    var orderDetail = _dbContext.Orders.FirstOrDefault(od => od.UserId == userId && od.ProductId == productId);
-                    if (orderDetail != null)
-                    {
-                        orderDetail.Quantity--;
-                        await _dbContext.SaveChangesAsync();
-                    }
+                    orderDetail.Quantity--;
+                    await _dbContext.SaveChangesAsync();
                 }
+
 
                 SessionHelper.SetObjectAsJson(httpContext.Session, "cart", cart);
                 var total = cart.Sum(item => item.Price * item.Quantity);
@@ -251,7 +274,8 @@ namespace DigitalResourcesStore.Services
                 return new JsonResult(new { success = false, message = "Mã voucher không hợp lệ hoặc đã hết lượt sử dụng vui lòng kiểm tra lại." });
             }
 
-            var cart = GetCartItems(httpContext);
+            var userId = GetUserIdFromToken(httpContext.Request);
+            var cart = GetCartItems(int.Parse(userId));
             if (cart == null || !cart.Any())
             {
                 return new JsonResult(new { success = false, message = "Giỏ hàng trống." });
@@ -302,19 +326,17 @@ namespace DigitalResourcesStore.Services
 
         public async Task<JsonResult> CheckOutAsync(HttpContext httpContext)
         {
-            var userId = httpContext.Session.GetInt32("User");
-            if (userId == null)
-            {
-                return new JsonResult(new { success = false, message = "Vui lòng đăng nhập.", loginRequired = true });
-            }
+            var userId = GetUserIdFromToken(httpContext.Request);
 
-            var user = await _dbContext.Users.FindAsync(userId);
+            var user = await _dbContext.Users.FindAsync(int.Parse(userId));
             if (user == null)
             {
                 return new JsonResult(new { success = false, message = "Người dùng không tồn tại." });
             }
 
-            var cart = SessionHelper.GetObjectFromJson<List<CartItemDto>>(httpContext.Session, "cart");
+            var cartDetails = await GetCartDetails(int.Parse(userId));
+            var cart = cartDetails.Items;
+
             if (cart == null || !cart.Any())
             {
                 return new JsonResult(new { success = false, message = "Giỏ hàng trống." });
@@ -338,7 +360,7 @@ namespace DigitalResourcesStore.Services
             try
             {
                 // Process order
-                await ProcessOrderAsync(userId.Value, cart, discountedTotal, CancellationToken.None);
+                await ProcessOrderAsync(int.Parse(userId), cart, discountedTotal, CancellationToken.None);
 
                 // Deduct money from user's account
                 user.Money = userMoney - discountedTotal;
@@ -346,7 +368,9 @@ namespace DigitalResourcesStore.Services
                 await _dbContext.SaveChangesAsync();
 
                 // Clear cart after successful checkout
-                httpContext.Session.Remove("cart");
+                var cartOrders = _dbContext.Orders.Where(o => o.UserId == int.Parse(userId));
+                _dbContext.Orders.RemoveRange(cartOrders);
+                await _dbContext.SaveChangesAsync();
 
                 return new JsonResult(new
                 {
@@ -449,25 +473,16 @@ namespace DigitalResourcesStore.Services
                 user.MembershipPoints += (int)discountedTotal;
                 _dbContext.Users.Update(user);
 
-                await _dbContext.SaveChangesAsync(token);
-
                 // Commit transaction
                 await transaction.CommitAsync(token);
+                await _dbContext.SaveChangesAsync(token);
 
-                TaskStatusStorage.SetTaskStatus(Guid.NewGuid(), "Completed", userId);
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(token);
                 throw new Exception($"Đã xảy ra lỗi khi xử lý đơn hàng: {ex.Message}", ex);
             }
-        }
-
-
-        public decimal GetCartTotal(HttpContext httpContext)
-        {
-            var cart = GetCartItems(httpContext);
-            return cart?.Sum(item => item.TotalPrice) ?? 0;
         }
 
         public async Task PopulateCartItemDetails(CartItemDto cartItem)

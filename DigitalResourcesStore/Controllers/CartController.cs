@@ -15,47 +15,49 @@ namespace DigitalResourcesStore.Controllers
     {
         private readonly IUserService _userService;
         private readonly ICartService _cartService;
-        private readonly IOrderService _orderService;
+        private readonly IAuthService _authService;
 
-        public CartController(IUserService userService, ICartService cartService, IOrderService orderService)
+        public CartController(IUserService userService, ICartService cartService, IAuthService authService)
         {
             _userService = userService;
             _cartService = cartService;
-            _orderService = orderService;
+            _authService = authService; 
         }
 
         [HttpPost("buy")]
-        public async Task<IActionResult> Buy(int productId, int quantity = 1)
+        public async Task<IActionResult> Buy([FromBody] AddToCartDto model)
         {
-            var result = await _cartService.Buy(HttpContext, productId, quantity);
+            var result = await _cartService.Buy(HttpContext, model.ProductId, model.Quantity);
             return result;
         }
         [HttpGet("cart-details")]
         public async Task<IActionResult> GetCartDetails()
         {
-            var userId = HttpContext.Session.GetInt32("User");
-            if (userId == null)
+            var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+            var token = authHeader?.Replace("Bearer ", "");
+
+            if (string.IsNullOrEmpty(token))
             {
-                return Unauthorized(new { message = "User not logged in." });
+                return Unauthorized(new { message = "Authorization token is missing." });
             }
 
-            var cart = await _cartService.GetCartDetails(userId.Value);
+            var userId = _authService.GetUserIdFromToken(token);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Invalid or expired token." });
+            }
 
-            if (cart == null || !cart.Any())
+            var cartDetails = await _cartService.GetCartDetails(int.Parse(userId));
+            if (cartDetails == null || !cartDetails.Items.Any())
             {
                 return NotFound(new { message = "No items found in the cart." });
             }
 
-            var total = cart.Sum(item => item.Price * item.Quantity);
-            var uniqueProductCount = cart.Select(item => item.ProductId).Distinct().Count();
-
-            return Ok(new
-            {
-                CartItems = cart,
-                TotalItems = uniqueProductCount,
-                TotalPrice = total
-            });
+            return Ok(cartDetails);
         }
+
+
+
 
         [HttpPost("remove")]
         public async Task<IActionResult> Remove(int productId)
@@ -93,20 +95,20 @@ namespace DigitalResourcesStore.Controllers
         }
 
 
-        [HttpPost("process-order")]
-        public async Task<IActionResult> ProcessOrder()
-        {
-            var userId = HttpContext.Session.GetInt32("User");
-            var cart = _cartService.GetCartItems(HttpContext);
-            var total = _cartService.GetCartTotal(HttpContext);
+        //[HttpPost("process-order")]
+        //public async Task<IActionResult> ProcessOrder()
+        //{
+        //    var userId = HttpContext.Session.GetInt32("User");
+        //    var cart = _cartService.GetCartItems(HttpContext);
+        //    var total = _cartService.GetCartTotal(HttpContext);
 
-            if (userId != null && cart != null)
-            {
-                await _orderService.ProcessOrderAsync(userId.Value, cart, total);
-                return RedirectToAction("PaymentSuccess");
-            }
+        //    if (userId != null && cart != null)
+        //    {
+        //        await _orderService.ProcessOrderAsync(userId.Value, cart, total);
+        //        return RedirectToAction("PaymentSuccess");
+        //    }
 
-            return RedirectToAction("PaymentFail");
-        }
+        //    return RedirectToAction("PaymentFail");
+        //}
     }
 }
