@@ -1,60 +1,142 @@
-﻿using DigitalResourcesStore.EntityFramework.Models;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
+using DigitalResourcesStore.Models;
+using DigitalResourcesStore.EntityFramework.Models;
+using DigitalResourcesStore.Models.DepositDtos;
+using DigitalResourcesStore.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using System.Net.Http;
 
 namespace DigitalResourcesStore.Services
 {
     public interface IDepositService
     {
-        string GenerateDepositCode();
-        DepositHistory GetDepositHistoryById(int id);
-        void SaveDeposit(DepositHistory deposit);
-        void UpdateDepositHistory(int id, bool isSuccess);
-        List<DepositHistory> GetAllDeposits();
+        Task<string> ProcessRechargeAsync(HttpContext httpContext, DepositDto deposit, int userId);
+        Task<string> HandlePaymentCallbackAsync(IQueryCollection query, int userId);
+        Task<DepositHistory> GetDepositHistoryAsync(int depositHistoryId);
+        Task<List<DepositHistory>> GetAllDepositHistoriesAsync();
+        Task UpdateDepositHistoryAsync(int depositHistoryId, bool isSuccess);
+        Task UpdateUserBalanceAsync(int userId, decimal amount);
     }
 
     public class DepositService : IDepositService
     {
         private readonly DigitalResourcesStoreDbContext _context;
+        private readonly IVnPayService _vnPayService;
+        private readonly IAuthService _authService;
 
-        public DepositService(DigitalResourcesStoreDbContext context)
+        public DepositService(DigitalResourcesStoreDbContext context, IVnPayService vnPayService, IAuthService authService)
         {
             _context = context;
+            _vnPayService = vnPayService;
+            _authService = authService;
         }
 
-        public string GenerateDepositCode()
+        public async Task<string> ProcessRechargeAsync(HttpContext httpContext, DepositDto deposit, int userId)
         {
-            return GenerateCodeDeposit();
-        }
-
-        public DepositHistory GetDepositHistoryById(int id)
-        {
-            return _context.DepositHistories.FirstOrDefault(x => x.Id == id);
-        }
-
-        public void SaveDeposit(DepositHistory deposit)
-        {
-            _context.DepositHistories.Add(deposit);
-            _context.SaveChanges();
-        }
-
-        public void UpdateDepositHistory(int id, bool isSuccess)
-        {
-            var deposit = GetDepositHistoryById(id);
-            if (deposit != null)
+            string depositCode = GenerateCodeDeposit();
+            var vnPayModel = new VnPaymentRequestModel
             {
-                deposit.IsSuccess = isSuccess;
-                _context.DepositHistories.Update(deposit);
-                _context.SaveChanges();
+                Amount = deposit.amount,
+                CreatedDate = DateTime.Now,
+                Description = deposit.description ?? "",
+                Id = depositCode
+            };
+
+            var depositHistory = new DepositHistory
+            {
+                Money = deposit.amount / 1000,
+                Description = deposit.description ?? "",
+                CreatedAt = DateTime.Now,
+                UserId = userId,
+                IsSuccess = false
+            };
+
+            _context.DepositHistories.Add(depositHistory);
+            await _context.SaveChangesAsync();
+
+            return _vnPayService.CreatePaymentUrl(httpContext, vnPayModel);
+        }
+
+        public async Task<string> HandlePaymentCallbackAsync(IQueryCollection query, int userId)
+        {
+            // Xác thực chữ ký số từ VNPay
+            bool isValidSignature = _vnPayService.ValidateSignature(query["vnp_SecureHash"], query);
+            if (!isValidSignature)
+            {
+                return "VNPay digital signature validation failed.";
+            }
+
+            // Kiểm tra mã phản hồi giao dịch
+            if (query["vnp_ResponseCode"] != "00")
+            {
+                return $"Payment failed with response code {query["vnp_ResponseCode"]}.";
+            }
+
+            // Lấy thông tin từ query
+            var transactionId = query["vnp_TransactionNo"];
+            var amount = decimal.Parse(query["vnp_Amount"]) / 100; // Convert từ VNPay (đơn vị VNĐ)
+
+            // Cập nhật số dư cho user
+            await UpdateUserBalanceAsync(userId, amount);
+
+            // Lưu trạng thái giao dịch
+            var depositHistory = await _context.DepositHistories
+                .FirstOrDefaultAsync(d => d.Id == transactionId);
+
+            if (depositHistory != null)
+            {
+                depositHistory.IsSuccess = true;
+                _context.DepositHistories.Update(depositHistory);
+                await _context.SaveChangesAsync();
+            }
+
+            return "Payment successful.";
+        }
+
+
+
+        public async Task<DepositHistory> GetDepositHistoryAsync(int depositHistoryId)
+        {
+            return await _context.DepositHistories.FindAsync(depositHistoryId);
+        }
+
+        public async Task<List<DepositHistory>> GetAllDepositHistoriesAsync()
+        {
+            return await _context.DepositHistories.ToListAsync();
+        }
+
+        public async Task UpdateDepositHistoryAsync(int depositHistoryId, bool isSuccess)
+        {
+            var depositHistory = await GetDepositHistoryAsync(depositHistoryId);
+            if (depositHistory != null)
+            {
+                depositHistory.IsSuccess = isSuccess;
+                _context.DepositHistories.Update(depositHistory);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                throw new Exception("Deposit history not found.");
             }
         }
 
-        public List<DepositHistory> GetAllDeposits()
+        public async Task UpdateUserBalanceAsync(int userId, decimal amount)
         {
-            return _context.DepositHistories.ToList();
+            var user = await _context.Users.FindAsync(userId);
+            if (user != null)
+            {
+                user.Money += amount / 1000;
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                throw new Exception("User not found.");
+            }
         }
 
         public static string GenerateCodeDeposit()

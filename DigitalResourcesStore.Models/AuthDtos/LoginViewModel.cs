@@ -10,7 +10,7 @@ namespace DigitalResourcesStore.Models.AuthDtos
     public class LoginViewModel
     {
         [Required]
-        public string userName { get; set; }
+        public string UserName { get; set; }
 
         [Required]
         public string Password { get; set; }

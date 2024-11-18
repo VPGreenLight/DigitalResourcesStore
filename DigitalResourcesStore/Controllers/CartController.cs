@@ -1,8 +1,7 @@
 ﻿using DigitalResourcesStore.Models.CartsDtos;
 using DigitalResourcesStore.Services;
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+
 
 namespace DigitalResourcesStore.Controllers
 {
@@ -12,58 +11,82 @@ namespace DigitalResourcesStore.Controllers
     {
         private readonly IUserService _userService;
         private readonly ICartService _cartService;
-        private readonly IOrderService _orderService;
+        private readonly IAuthService _authService;
 
-        public CartController(IUserService userService, ICartService cartService, IOrderService orderService)
+        public CartController(IUserService userService, ICartService cartService, IAuthService authService)
         {
             _userService = userService;
             _cartService = cartService;
-            _orderService = orderService;
+            _authService = authService;
         }
 
-        [HttpPost("add")]
-        public async Task<IActionResult> AddToCart(int productId, int quantity)
+        [HttpPost("buy")]
+        public async Task<IActionResult> Buy([FromBody] AddToCartDto model)
         {
-            var userId = HttpContext.Session.GetInt32("User");
-            if (userId == null)
+            var result = await _cartService.Buy(HttpContext, model.ProductId, model.Quantity);
+            return result;
+        }
+
+        [HttpGet("cart-details")]
+        public async Task<IActionResult> GetCartDetails()
+        {
+            var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+            var token = authHeader?.Replace("Bearer ", "");
+
+            if (string.IsNullOrEmpty(token))
             {
-                return Unauthorized("User not logged in.");
+                return Unauthorized(new { message = "Authorization token is missing." });
             }
 
-            await _cartService.AddToCart(HttpContext, productId, quantity);
-
-            // Get updated cart details
-            var cartItems = _cartService.GetCartItems(HttpContext);
-            var totalQuantity = cartItems.Sum(item => item.Quantity);
-            var totalPrice = _cartService.GetCartTotal(HttpContext);
-
-                   return Ok(new
+            var userId = _authService.GetUserIdFromToken(token);
+            if (string.IsNullOrEmpty(userId))
             {
-                Message = "Product added to cart successfully.",
-                CartSummary = new
-                {
-                    TotalItems = totalQuantity,
-                    TotalPrice = totalPrice,
-                    Items = cartItems
-                }
-            });
-        }
-
-
-        [HttpPost("process-order")]
-        public async Task<IActionResult> ProcessOrder()
-        {
-            var userId = HttpContext.Session.GetInt32("User");
-            var cart = _cartService.GetCartItems(HttpContext);
-            var total = _cartService.GetCartTotal(HttpContext);
-
-            if (userId != null && cart != null)
-            {
-                await _orderService.ProcessOrderAsync(userId.Value, cart, total);
-                return RedirectToAction("PaymentSuccess");
+                return Unauthorized(new { message = "Invalid or expired token." });
             }
 
-            return RedirectToAction("PaymentFail");
+            var cartDetails = await _cartService.GetCartDetails(int.Parse(userId));
+            if (cartDetails == null || !cartDetails.Items.Any())
+            {
+                return NotFound(new { message = "No items found in the cart." });
+            }
+
+            return Ok(cartDetails);
         }
+
+        [HttpPost("remove/{productId}")]
+        public async Task<IActionResult> Remove(int productId)
+        {
+            var result = await _cartService.RemoveFromCart(HttpContext, productId);
+            return result;
+        }
+
+        [HttpPost("increase-quantity/{productId}")]
+        public async Task<IActionResult> IncreaseQuantity(int productId)
+        {
+            var result = await _cartService.IncreaseQuantity(HttpContext, productId);
+            return result;
+        }
+
+        [HttpPost("decrease-quantity/{productId}")]
+        public async Task<IActionResult> DecreaseQuantity(int productId)
+        {
+            var result = await _cartService.DecreaseQuantity(HttpContext, productId);
+            return result;
+        }
+
+        [HttpPost("apply-voucher")]
+        public async Task<IActionResult> ApplyVoucher(string code)
+        {
+            var result = await _cartService.ApplyVoucher(HttpContext, code);
+            return result;
+        }
+
+        [HttpPost("checkout")]
+        public async Task<IActionResult> CheckOut()
+        {
+            var result = await _cartService.CheckOutAsync(HttpContext);
+            return result;
+        }
+
     }
 }

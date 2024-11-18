@@ -1,108 +1,136 @@
-﻿using DigitalResourcesStore.EntityFramework.Models;
-using DigitalResourcesStore.Models.DepositDtos;
+﻿using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
+using DigitalResourcesStore.Models;
 using DigitalResourcesStore.Services;
-using Microsoft.AspNetCore.Mvc;
+using DigitalResourcesStore.Models.DepositDtos;
 
-[Route("api/deposits")]  // Change the route to be more API-centric
-public class DepositsController : ControllerBase
+namespace DigitalResourcesStore.Controllers
 {
-    private readonly IVnPayService _vnPayService;
-    private readonly IDepositService _depositService;
-    private readonly IUserService _userService;
-
-    public DepositsController(IVnPayService vnPayService, IDepositService depositService, IUserService userService)
+    [ApiController]
+    [Route("api/deposits")]
+    public class DepositsController : ControllerBase
     {
-        _vnPayService = vnPayService;
-        _depositService = depositService;
-        _userService = userService;
-    }
-
-    [HttpPost("recharge")]  // Post endpoint for recharge
-    public async Task<IActionResult> VnPay([FromBody] DepositDto deposit)
-    {
-        if (!ModelState.IsValid)
+        private readonly IDepositService _depositService;
+        private readonly IAuthService _authService;
+        public DepositsController(IDepositService depositService, IAuthService authService)
         {
-            return BadRequest("Invalid data.");
+            _depositService = depositService;
+            _authService = authService;
         }
 
-        int? userId = HttpContext.Session.GetInt32("User");
-        if (!userId.HasValue)
+        [HttpPost("recharge")]
+        public async Task<IActionResult> Recharge([FromBody] DepositDto deposit)
         {
-            return Unauthorized(new { Message = "User session not found." });
-        }
+            if (!ModelState.IsValid)
+                return BadRequest(new { Message = "Invalid input data." });
 
-        string id = _depositService.GenerateDepositCode();
-        var vnPayModel = new VnPaymentRequestModel
-        {
-            Amount = deposit.amount,
-            CreatedDate = DateTime.Now,
-            Description = deposit.description ?? "",
-            Id = id,
-        };
+            // Lấy userId từ token (thay thế hardcode)
+            var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+            var token = authHeader?.Replace("Bearer ", "");
 
-        var depositHistory = new DepositHistory
-        {
-            Money = deposit.amount / 1000,
-            Description = deposit.description ?? "",
-            CreatedAt = DateTime.Now,
-            UserId = userId.Value,  // Use userId.Value since userId is nullable
-            IsSuccess = false
-        };
-
-        _depositService.SaveDeposit(depositHistory);
-
-        var dhId = depositHistory.Id;
-        HttpContext.Session.SetInt32("DHID", dhId);
-
-        var paymentUrl = _vnPayService.CreatePaymentUrl(HttpContext, vnPayModel);
-        return Ok(new { PaymentUrl = paymentUrl });
-    }
-
-    [HttpGet("callback")]  // Callback endpoint to handle VNPay response
-    public async Task<IActionResult> PaymentCallBack()
-    {
-        // Lấy các tham số từ query string của URL callback
-        var response = _vnPayService.PaymentExecute(Request.Query);
-
-        int? dhId = HttpContext.Session.GetInt32("DHID");
-        if (!dhId.HasValue)
-        {
-            return BadRequest(new { Message = "Deposit history ID not found in session." });
-        }
-
-        var depositHistory = _depositService.GetDepositHistoryById(dhId.Value);
-
-        // Kiểm tra nếu kết quả trả về từ VNPay hợp lệ và chữ ký xác thực
-        if (response != null && response.VnPayReponseCode == "00" && _vnPayService.ValidateSignature(Request.Query["vnp_SecureHash"], Request.Query))
-        {
-            // Lấy thông tin người dùng từ session
-            int? userId = HttpContext.Session.GetInt32("User");
-            if (!userId.HasValue)
+            if (string.IsNullOrEmpty(token))
             {
-                return Unauthorized(new { Message = "User session not found." });
+                return Unauthorized(new { message = "Authorization token is missing." });
             }
 
-            var user = await _userService.GetById(userId.Value);
-            if (user != null)
+            var userId = _authService.GetUserIdFromToken(token);
+            if (string.IsNullOrEmpty(userId))
             {
-                // Cập nhật số dư người dùng sau khi thanh toán thành công
-                await _userService.UpdateUserBalance(userId.Value, response.Amount);
+                return Unauthorized(new { message = "Invalid or expired token." });
+            }
 
-                // Cập nhật trạng thái lịch sử nạp tiền thành công
-                depositHistory.IsSuccess = true;
-                _depositService.UpdateDepositHistory(dhId.Value, true);
+            // Gọi service xử lý logic recharge
+            string paymentUrl = await _depositService.ProcessRechargeAsync(HttpContext, deposit, int.Parse(userId));
 
-                // Cập nhật số tiền người dùng trong session
-                HttpContext.Session.SetString("UserMoney", user.Money?.ToString("0.000") ?? "0.000");
+            if (string.IsNullOrEmpty(paymentUrl))
+                return BadRequest(new { Message = "Failed to create payment URL." });
 
-                // Trả về kết quả thành công
-                return Ok(new { Message = "Thanh toán VNPay thành công" });
+            return Ok(new { PaymentUrl = paymentUrl });
+        }
+
+        [HttpGet("payment-callback")]
+        public async Task<IActionResult> PaymentCallBack()
+        {
+            try
+            {
+                // Log bước bắt đầu
+                Console.WriteLine("Starting PaymentCallBack");
+
+                // Lấy token từ Authorization header
+                var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+                var token = authHeader?.Replace("Bearer ", "");
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    Console.WriteLine("Token is missing");
+                    return Unauthorized(new { message = "Authorization token is missing." });
+                }
+
+                // Giải mã token để lấy userId
+                var userId = _authService.GetUserIdFromToken(token);
+                if (string.IsNullOrEmpty(userId))
+                {
+                    Console.WriteLine("Invalid token");
+                    return Unauthorized(new { message = "Invalid or expired token." });
+                }
+
+                // Lấy thông tin từ query
+                var query = Request.Query;
+                Console.WriteLine($"Query received: {query}");
+
+                // Gọi service xử lý callback
+                var result = await _depositService.HandlePaymentCallbackAsync(query, int.Parse(userId));
+
+                Console.WriteLine($"Service result: {result}");
+                if (result.Contains("successful"))
+                {
+                    return Ok(new { Message = "Payment successful." });
+                }
+                else
+                {
+                    return BadRequest(new { Message = result });
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi
+                Console.WriteLine($"Error in PaymentCallBack: {ex.Message}");
+                return StatusCode(500, new { Message = "An error occurred while processing the payment callback." });
             }
         }
 
-        // Nếu không hợp lệ, trả về thông báo lỗi
-        return BadRequest(new { Message = $"Lỗi thanh toán VNPay: {response?.VnPayReponseCode}" });
+
+
+
+        [HttpGet("history/{id}")]
+        public async Task<IActionResult> GetDepositHistory(int id)
+        {
+            var depositHistory = await _depositService.GetDepositHistoryAsync(id);
+            if (depositHistory == null)
+                return NotFound(new { Message = "Deposit history not found." });
+
+            return Ok(depositHistory);
+        }
+
+        [HttpGet("history")]
+        public async Task<IActionResult> GetAllDepositHistories()
+        {
+            var depositHistories = await _depositService.GetAllDepositHistoriesAsync();
+            return Ok(depositHistories);
+        }
+
+        [HttpPost("update-history/{id}")]
+        public async Task<IActionResult> UpdateDepositHistory(int id, [FromQuery] bool isSuccess)
+        {
+            try
+            {
+                await _depositService.UpdateDepositHistoryAsync(id, isSuccess);
+                return Ok(new { Message = "Deposit history updated successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
     }
-
-
 }

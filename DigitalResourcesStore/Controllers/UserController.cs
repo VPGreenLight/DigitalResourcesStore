@@ -10,9 +10,11 @@ namespace DigitalResourcesStore.Controllers
     public class UserController : Controller
     {
         private readonly IUserService _userService;
+        private readonly IAuthService _authService;
 
-        public UserController(IUserService userService)
+        public UserController(IAuthService authService, IUserService userService)
         {
+            _authService = authService;
             _userService = userService;
         }
 
@@ -52,6 +54,26 @@ namespace DigitalResourcesStore.Controllers
         public async Task<ActionResult<bool>> ChangePassword(int id, [FromBody] ChangePasswordDto request)
         {
             return await _userService.ChangePassword(id, request);
+        }
+
+        [HttpGet("me")]
+        public async Task<ActionResult<UserDto>> GetUserFromToken()
+        {
+            var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+            var token = Request.Headers["Authorization"].ToString()?.Replace("Bearer ", "");
+            Console.WriteLine($"Token nhận được: {token}");
+
+            if (string.IsNullOrEmpty(token)) return Unauthorized();
+
+            var userId = _authService.GetUserIdFromToken(token);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            Console.WriteLine($"User ID từ token: {userId}");
+
+            var user = await _userService.GetById(int.Parse(userId));
+            if (user == null) return NotFound();
+
+            return Ok(user);
         }
     }
 }

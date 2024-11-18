@@ -9,17 +9,10 @@ public interface ICaptchaService
     string GenerateCaptchaCode(int length);
     byte[] GenerateCaptchaImage(string captchaCode);
 
-    bool ValidateCaptcha(string userInput);
 }
 public class CaptchaService : ICaptchaService
 {
-    private readonly IHttpContextAccessor _httpContextAccessor;
     private const string CaptchaSessionKey = "CaptchaCode";
-
-    public CaptchaService(IHttpContextAccessor httpContextAccessor)
-    {
-        _httpContextAccessor = httpContextAccessor;
-    }
 
     // Generate a random captcha code and store it in the session
     public string GenerateCaptchaCode(int length = 6)
@@ -28,8 +21,6 @@ public class CaptchaService : ICaptchaService
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         var captchaCode = new string(Enumerable.Repeat(chars, length)
                                                .Select(s => s[random.Next(s.Length)]).ToArray());
-
-        _httpContextAccessor.HttpContext.Session.SetString(CaptchaSessionKey, captchaCode);
         return captchaCode;
     }
 
@@ -45,12 +36,5 @@ public class CaptchaService : ICaptchaService
         using var stream = new MemoryStream();
         bitmap.Save(stream, ImageFormat.Png);
         return stream.ToArray();
-    }
-
-    // Validate the captcha code
-    public bool ValidateCaptcha(string userInput)
-    {
-        var storedCaptchaCode = _httpContextAccessor.HttpContext.Session.GetString(CaptchaSessionKey);
-        return storedCaptchaCode != null && storedCaptchaCode.Equals(userInput, StringComparison.OrdinalIgnoreCase);
     }
 }

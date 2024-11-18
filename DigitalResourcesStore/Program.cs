@@ -3,37 +3,49 @@ using DigitalResourcesStore.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
+// Add services to the container
 builder.Services.AddControllers();
-
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Register Captcha Service and IHttpContextAccessor (if needed)
+builder.Services.AddSingleton<CaptchaService>();
+builder.Services.AddHttpContextAccessor(); // To access HttpContext in services
+
+// Configure session
+builder.Services.AddDistributedMemoryCache();
+
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(60); // Session timeout
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+});
 
 // Add DbContext with connection string
 builder.Services.AddDbContext<DigitalResourcesStoreDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("SqlServer")));
 
-// Thêm config cho SQL Server
+// Configure database-related services (if AddDbConfig is defined)
 builder.Services.AddDbConfig(builder.Configuration);
 
-// Register Captcha Service and Session support
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddSingleton<CaptchaService>();
-builder.Services.AddDistributedMemoryCache();
-
-// Enable session middleware
-builder.Services.AddSession(options =>
+// Configure CORS to allow Angular app
+builder.Services.AddCors(options =>
 {
-    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.AddPolicy("AllowAngularApp", builder => builder
+        .WithOrigins("http://localhost:4200")
+        .AllowAnyMethod()
+        .AllowAnyHeader()
+        .AllowCredentials());
 });
 
-// Thêm JWT Token 
+// Configure JWT authentication
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -53,26 +65,53 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddHttpContextAccessor();
-// Thêm config các service phục vụ cho controller
+//builder.Services.AddAuthorization();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Please enter JWT with Bearer into field. Example: Bearer {token}",
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+new string[] { }
+        }
+    });
+});
+
+// Register application services for controllers
 builder.Services.AddServiceCollections();
 
 var app = builder.Build();
 
-//Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
-app.UseSwagger();
+    app.UseSwagger();
     app.UseSwaggerUI();
 }
-app.UseSession();
-app.UseHttpsRedirection();
+
+app.UseRouting();
 app.UseCors("AllowAngularApp");
-
+app.UseSession();
+app.MapControllerRoute(
+    name: "deposit-callback",
+    pattern: "Deposits/{action=PaymentCallBack}");
 app.UseHttpsRedirection();
-
+app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
