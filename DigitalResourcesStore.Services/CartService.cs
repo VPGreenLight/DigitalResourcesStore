@@ -33,12 +33,14 @@ namespace DigitalResourcesStore.Services
         private readonly DigitalResourcesStoreDbContext _dbContext;
         private readonly ILogger<CartService> _logger;
         private readonly IAuthService _authService; // Service để xử lý token và lấy userId từ token
+        private readonly IVnPayCartService _vnPayCartService;
 
-        public CartService(DigitalResourcesStoreDbContext dbContext, ILogger<CartService> logger, IAuthService authService)
+        public CartService(DigitalResourcesStoreDbContext dbContext, ILogger<CartService> logger, IAuthService authService, IVnPayCartService vnPayCartService)
         {
             _dbContext = dbContext;
             _logger = logger;
             _authService = authService;
+            _vnPayCartService = vnPayCartService;
         }
 
         private string GetUserIdFromToken(HttpRequest request)

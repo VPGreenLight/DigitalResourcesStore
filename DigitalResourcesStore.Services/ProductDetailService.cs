@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using DigitalResourcesStore.EntityFramework.Models;
-using QuizApp.Models;
+using DigitalResourcesStore.Models;
 using static System.Net.Mime.MediaTypeNames;
 using DigitalResourcesStore.Models.ProductDtos;
 

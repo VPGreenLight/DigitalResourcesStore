@@ -1,4 +1,4 @@
-﻿namespace QuizApp.Models
+﻿namespace DigitalResourcesStore.Models
 {
 	/// <summary>
 	/// PageRequest là định nghĩa cho một object truy vấn phân trang cho 1 đối tượng

@@ -18,6 +18,7 @@ namespace DigitalResourcesStore.Services
             service.AddScoped<ICartService, CartService>();
             //service.AddScoped<IVIPService, VIPService>();
             service.AddScoped<IVnPayService, VnPayService>();
+            service.AddScoped<IVnPayCartService, VnPayCartService>();
             service.AddScoped<IDepositService, DepositService>();
             service.AddScoped<IUserService, UserService>();
             service.AddScoped<IDashboardService, DashboardService>();
