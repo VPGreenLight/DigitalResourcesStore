@@ -88,5 +88,50 @@ namespace DigitalResourcesStore.Controllers
             return result;
         }
 
+        [HttpPost("cart-payment")]
+        public async Task<IActionResult> CreateCartPayment()
+        {
+            var result = await _cartService.ProcessCartPaymentAsync(HttpContext);
+            return result;
+        }
+        [HttpGet("cart-payment-callback")]
+        public async Task<IActionResult> CartPaymentCallback()
+        {
+            try
+            {
+                // Lấy userId từ token
+                var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+                var token = authHeader?.Replace("Bearer ", "");
+
+                if (string.IsNullOrEmpty(token))
+                    return Unauthorized(new { message = "Authorization token is missing." });
+
+                var userId = _authService.GetUserIdFromToken(token);
+                if (string.IsNullOrEmpty(userId))
+                    return Unauthorized(new { message = "Invalid or expired token." });
+
+                // Lấy thông tin query từ callback
+                var query = Request.Query;
+
+                // Gọi service xử lý callback
+                var result = await _cartService.HandleCartPaymentCallbackAsync(query, int.Parse(userId), HttpContext);
+
+                if (result.Contains("successful"))
+                {
+                    return Ok(new { Message = "Payment successful." });
+                }
+                else
+                {
+                    return BadRequest(new { Message = result });
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi
+                Console.WriteLine($"Error in PaymentCallBack: {ex.Message}");
+                return StatusCode(500, new { Message = "An error occurred while processing the payment callback." });
+            }
+        }
+
     }
 }
