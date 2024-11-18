@@ -24,6 +24,7 @@ namespace DigitalResourcesStore.Services
             service.AddScoped<IDashboardService, DashboardService>();
             service.AddScoped<IUserFavoriteService, UserFavoriteService>();
             service.AddScoped<ISupportService, SupportService>();
+            service.AddScoped<IVoucherService, VoucherService>();
         }
     }
 }

@@ -9,7 +9,6 @@
   <ItemGroup>
     <Folder Include="AuthDtos\CategoryDtos\" />
     <Folder Include="OrderDtos\" />
-    <Folder Include="ProductDtos\" />
   </ItemGroup>
 
 </Project>

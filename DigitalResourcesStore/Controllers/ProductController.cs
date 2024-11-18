@@ -45,5 +45,18 @@ namespace DigitalResourcesStore.Controllers
         {
             return await _productService.Delete(id);
         }
+        [HttpGet("by-category/{categoryId}")]
+        public async Task<IActionResult> GetProductsByCategory(int categoryId, [FromQuery] QueryCategory query)
+        {
+            var products = await _productService.GetProductsByCategory(categoryId, query);
+            return Ok(products);
+        }
+
+        [HttpGet("by-price-range")]
+        public async Task<IActionResult> GetProductsByPriceRange([FromQuery] decimal minPrice, [FromQuery] decimal maxPrice)
+        {
+                var products = await _productService.GetProductsByPriceRange(minPrice, maxPrice);
+                return Ok(products);
+        }
     }
 }

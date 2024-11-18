@@ -19,44 +19,44 @@ namespace DigitalResourcesStore.Controllers
         [HttpPost("add")]
         public async Task<IActionResult> AddToFavorite(int productId)
         {
-            //var userId = HttpContext.Session.GetInt32("User");
-            //if (userId == null)
-            //{
-            //    return Json(new { success = false, message = "Bạn phải đăng nhập để tiếp tục." });
-            //}
+            var userId = HttpContext.Session.GetInt32("User");
+            if (userId == null)
+            {
+                return Json(new { success = false, message = "bạn phải đăng nhập để tiếp tục." });
 
-            //var success = await _userFavoriteService.AddToFavorite(userId.Value, productId);
+            }
+            var success = await _userFavoriteService.AddToFavorite(userId.Value, productId);
+            return Json(new { success, message = success ? "sản phẩm đã được thêm vào yêu thích." : "thêm sản phẩm thất bại." });
+            //var success = await _userFavoriteService.AddToFavorite(1, productId);
             //return Json(new { success, message = success ? "Sản phẩm đã được thêm vào yêu thích." : "Thêm sản phẩm thất bại." });
-            var success = await _userFavoriteService.AddToFavorite(1, productId);
-            return Json(new { success, message = success ? "Sản phẩm đã được thêm vào yêu thích." : "Thêm sản phẩm thất bại." });
         }
 
         [HttpPost("remove")]
         public async Task<IActionResult> RemoveFromFavorite(int productId)
         {
-            //var userId = HttpContext.Session.GetInt32("User");
-            //if (userId == null)
-            //{
-            //    return Json(new { success = false, message = "Bạn phải đăng nhập để tiếp tục." });
-            //}
+            var userId = HttpContext.Session.GetInt32("User");
+            if (userId == null)
+            {
+                return Json(new { success = false, message = "Bạn phải đăng nhập để tiếp tục." });
+            }
 
-            var success = await _userFavoriteService.RemoveFromFavorite(1, productId);
+            var success = await _userFavoriteService.RemoveFromFavorite(userId.Value, productId);
             return Json(new { success, message = success ? "Xoá sản phẩm thành công." : "Không tìm thấy sản phẩm." });
         }
 
         [HttpGet("list")]
         public async Task<IActionResult> FavoriteProducts()
         {
-            //var userId = HttpContext.Session.GetInt32("User");
-            //if (userId == null)
-            //{
-            //    return RedirectToAction("Login", "Account");
-            //}
+            var userId = HttpContext.Session.GetInt32("User");
+            if (userId == null)
+            {
+                //return RedirectToAction("Login", "Account");
+                return Unauthorized("User not logged in.");
+            }
 
-            //var favoriteProducts = await _userFavoriteService.GetFavoritesByUserId(userId.Value);
-            //return Ok(favoriteProducts);
-            var favoriteProducts = await _userFavoriteService.GetFavoritesByUserId(1);
+            var favoriteProducts = await _userFavoriteService.GetFavoritesByUserId(userId.Value);
             return Ok(favoriteProducts);
+
         }
     }
 }

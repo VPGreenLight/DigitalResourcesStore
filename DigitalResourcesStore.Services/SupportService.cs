@@ -14,10 +14,10 @@ namespace DigitalResourcesStore.Services
 {
     public interface ISupportService
     {
-        Task<List<ContactRequestDtos>> GetUserContactRequests(int userId);
-        Task<ContactRequestDtos> CreateContactRequest(ContactRequestDtos contactRequestDto);
-        Task<List<MessageSupportDtos>> GetUserSupportMessages(int userId);
-        Task<MessageSupportDtos> CreateSupportMessage(MessageSupportDtos messageSupportDto);
+        Task<List<ContactRequestDtos>> GetAllContactRequests();
+        Task<List<MessageSupportDtos>> GetAllSupportMessages();
+        Task<ContactRequestDtos> CreateContactRequest(ContactRequestDtos contactRequestDto, int userId);
+        Task<MessageSupportDtos> CreateSupportMessage(MessageSupportDtos messageSupportDto, int userId);
         Task<AdminReplyDtos> CreateAdminReply(AdminReplyDtos adminReplyDto);
     }
 
@@ -31,12 +31,12 @@ namespace DigitalResourcesStore.Services
             _config = config;
             _db = db;
         }
-        public async Task<List<ContactRequestDtos>> GetUserContactRequests(int userId)
+        public async Task<List<ContactRequestDtos>> GetAllContactRequests()
         {
             return await _db.ContactRequests
-                .Where(cr => cr.UserId == userId)
                 .Select(cr => new ContactRequestDtos
                 {
+                    Id = cr.Id,
                     FullName = cr.FullName,
                     DateOfBirth = cr.DateOfBirth,
                     Cccd = cr.Cccd,
@@ -44,11 +44,12 @@ namespace DigitalResourcesStore.Services
                     PhoneNumber = cr.PhoneNumber,
                     Email = cr.Email,
                     Content = cr.Content,
-                    UserId = cr.UserId  
+                    IsAccepted = cr.IsAccepted,
+                    AdminReply = cr.AdminReply != null,
                 }).ToListAsync();
         }
 
-        public async Task<ContactRequestDtos> CreateContactRequest(ContactRequestDtos contactRequestDto)
+        public async Task<ContactRequestDtos> CreateContactRequest(ContactRequestDtos contactRequestDto, int userId)
         {
             var contactRequest = new ContactRequest
             {
@@ -59,7 +60,9 @@ namespace DigitalResourcesStore.Services
                 PhoneNumber = contactRequestDto.PhoneNumber,
                 Email = contactRequestDto.Email,
                 Content = contactRequestDto.Content,
-                UserId = contactRequestDto.UserId
+                UserId = userId,
+                IsAccepted = false,
+                //AdminReply = false,
             };
 
             _db.ContactRequests.Add(contactRequest);
@@ -68,22 +71,24 @@ namespace DigitalResourcesStore.Services
             //contactRequestDto.Id = contactRequest.Id;
             return contactRequestDto;
         }
-        public async Task<List<MessageSupportDtos>> GetUserSupportMessages(int userId)
+        public async Task<List<MessageSupportDtos>> GetAllSupportMessages()
         {
             return await _db.MessageSupports
-                .Where(ms => ms.UserId == userId)
                 .Select(ms => new MessageSupportDtos
                 {
+                    Id = ms.Id,
                     Email = ms.Email,
                     PhoneNumber = ms.PhoneNumber,
                     Subject = ms.Subject,
                     Content = ms.Content,
-                    IsProcessed = false,
-                    UserId = ms.UserId
+                    IsProcessed = ms.IsProcessed,
+                    AdminReply = ms.AdminReply != null,
+                    //UserName = ms.UserName,
+                    //UserId = ms.UserId
                 }).ToListAsync();
         }
 
-        public async Task<MessageSupportDtos> CreateSupportMessage(MessageSupportDtos messageSupportDto)
+        public async Task<MessageSupportDtos> CreateSupportMessage(MessageSupportDtos messageSupportDto, int userId)
         {
             var messageSupport = new MessageSupport
             {
@@ -91,8 +96,9 @@ namespace DigitalResourcesStore.Services
                 PhoneNumber = messageSupportDto.PhoneNumber,
                 Subject = messageSupportDto.Subject,
                 Content = messageSupportDto.Content,
-                IsProcessed = messageSupportDto.IsProcessed,
-                UserId = messageSupportDto.UserId
+                IsProcessed = false,
+                UserId = userId,
+                //UserName= messageSupportDto.UserName,
             };
 
             _db.MessageSupports.Add(messageSupport);
@@ -135,7 +141,9 @@ namespace DigitalResourcesStore.Services
 
                 if (messageSupport != null)
                 {
-                    messageSupport.AdminReplyId = adminReply.Id; // Cập nhật AdminReplyId trong bảng MessageSupport
+                    messageSupport.AdminReplyId = adminReply.Id;
+                    messageSupport.IsProcessed = true;
+                    // Cập nhật AdminReplyId trong bảng MessageSupport
                     _db.Update(messageSupport);
                     await _db.SaveChangesAsync(); // Lưu thay đổi vào MessageSupport
                 }
