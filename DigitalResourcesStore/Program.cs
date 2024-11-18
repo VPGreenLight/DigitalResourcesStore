@@ -106,6 +106,9 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 app.UseCors("AllowAngularApp");
 app.UseSession();
+app.MapControllerRoute(
+    name: "deposit-callback",
+    pattern: "Deposits/{action=PaymentCallBack}");
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();

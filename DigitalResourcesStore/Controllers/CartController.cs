@@ -1,10 +1,6 @@
 ﻿using DigitalResourcesStore.Models.CartsDtos;
 using DigitalResourcesStore.Services;
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using System.Linq;
-using DigitalResourcesStore.Helper;
 
 
 namespace DigitalResourcesStore.Controllers
@@ -21,7 +17,7 @@ namespace DigitalResourcesStore.Controllers
         {
             _userService = userService;
             _cartService = cartService;
-            _authService = authService; 
+            _authService = authService;
         }
 
         [HttpPost("buy")]
@@ -30,6 +26,7 @@ namespace DigitalResourcesStore.Controllers
             var result = await _cartService.Buy(HttpContext, model.ProductId, model.Quantity);
             return result;
         }
+
         [HttpGet("cart-details")]
         public async Task<IActionResult> GetCartDetails()
         {
@@ -56,24 +53,21 @@ namespace DigitalResourcesStore.Controllers
             return Ok(cartDetails);
         }
 
-
-
-
-        [HttpPost("remove")]
+        [HttpPost("remove/{productId}")]
         public async Task<IActionResult> Remove(int productId)
         {
             var result = await _cartService.RemoveFromCart(HttpContext, productId);
             return result;
         }
 
-        [HttpPost("increase-quantity")]
+        [HttpPost("increase-quantity/{productId}")]
         public async Task<IActionResult> IncreaseQuantity(int productId)
         {
             var result = await _cartService.IncreaseQuantity(HttpContext, productId);
             return result;
         }
 
-        [HttpPost("decrease-quantity")]
+        [HttpPost("decrease-quantity/{productId}")]
         public async Task<IActionResult> DecreaseQuantity(int productId)
         {
             var result = await _cartService.DecreaseQuantity(HttpContext, productId);
@@ -94,21 +88,5 @@ namespace DigitalResourcesStore.Controllers
             return result;
         }
 
-
-        //[HttpPost("process-order")]
-        //public async Task<IActionResult> ProcessOrder()
-        //{
-        //    var userId = HttpContext.Session.GetInt32("User");
-        //    var cart = _cartService.GetCartItems(HttpContext);
-        //    var total = _cartService.GetCartTotal(HttpContext);
-
-        //    if (userId != null && cart != null)
-        //    {
-        //        await _orderService.ProcessOrderAsync(userId.Value, cart, total);
-        //        return RedirectToAction("PaymentSuccess");
-        //    }
-
-        //    return RedirectToAction("PaymentFail");
-        //}
     }
 }
