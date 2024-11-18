@@ -7,10 +7,7 @@ using System.Threading.Tasks;
 
 namespace DigitalResourcesStore.Models.ProductDtos
 {
-    public class QueryProductDto : PagedRequest
+    public class QueryCategory : PagedRequest
     {
-        public string? Keyword { get; set; }
-        public decimal? MinPrice { get; set; } 
-        public decimal? MaxPrice { get; set; } 
     }
 }

@@ -16,12 +16,12 @@ namespace DigitalResourcesStore.Controllers
             _supportService = supportService;
         }
         [HttpGet("contact-requests")]
-        public async Task<IActionResult> GetUserContactRequests([FromQuery] int userId)
+        public async Task<IActionResult> GetAllContactRequests()
         {
-            var contactRequests = await _supportService.GetUserContactRequests(userId);
+            var contactRequests = await _supportService.GetAllContactRequests();
             if (contactRequests == null || contactRequests.Count == 0)
             {
-                return NotFound("Không tìm thấy yêu cầu liên hệ nào cho người dùng này.");
+                return NotFound("Không tìm thấy yêu cầu liên hệ nào.");
             }
             return Ok(contactRequests);
         }
@@ -30,23 +30,32 @@ namespace DigitalResourcesStore.Controllers
         [HttpPost("contact-requests")]
         public async Task<IActionResult> CreateContactRequest([FromBody] ContactRequestDtos contactRequestDto)
         {
+            var userId = HttpContext.Session.GetInt32("User");
+            if (userId == null)
+            {
+                return Unauthorized("User không đăng nhập.");
+            }
             if (!ModelState.IsValid)
             {
                 return BadRequest("Dữ liệu yêu cầu liên hệ không hợp lệ.");
             }
 
-            var createdContactRequest = await _supportService.CreateContactRequest(contactRequestDto);
-            return CreatedAtAction(nameof(GetUserContactRequests), new { userId = createdContactRequest.UserId }, createdContactRequest);
+            var createdContactRequest = await _supportService.CreateContactRequest(contactRequestDto, userId.Value);
+            return CreatedAtAction(nameof(GetAllContactRequests), new { userId = userId.Value }, new
+            {
+                Message = "Tạo yêu cầu liên hệ thành công.",
+                Data = createdContactRequest
+            });
         }
 
         // GET: api/support/support-messages
         [HttpGet("support-messages")]
-        public async Task<IActionResult> GetUserSupportMessages([FromQuery] int userId)
+        public async Task<IActionResult> GetAllSupportMessages()
         {
-            var supportMessages = await _supportService.GetUserSupportMessages(userId);
+            var supportMessages = await _supportService.GetAllSupportMessages();
             if (supportMessages == null || supportMessages.Count == 0)
             {
-                return NotFound("Không tìm thấy tin nhắn hỗ trợ nào cho người dùng này.");
+                return NotFound("Không tìm thấy tin nhắn hỗ trợ nào.");
             }
             return Ok(supportMessages);
         }
@@ -55,13 +64,22 @@ namespace DigitalResourcesStore.Controllers
         [HttpPost("support-messages")]
         public async Task<IActionResult> CreateSupportMessage([FromBody] MessageSupportDtos messageSupportDto)
         {
+            var userId = HttpContext.Session.GetInt32("User");
+            if (userId == null)
+            {
+                return Unauthorized("User không đăng nhập.");
+            }
             if (!ModelState.IsValid)
             {
                 return BadRequest("Dữ liệu tin nhắn hỗ trợ không hợp lệ.");
             }
 
-            var createdSupportMessage = await _supportService.CreateSupportMessage(messageSupportDto);
-            return CreatedAtAction(nameof(GetUserSupportMessages), new { userId = createdSupportMessage.UserId }, createdSupportMessage);
+            var createdSupportMessage = await _supportService.CreateSupportMessage(messageSupportDto, userId.Value);
+            return CreatedAtAction(nameof(GetAllSupportMessages), new { userId = userId.Value }, new
+            {
+                Message = "Tin nhắn hỗ trợ đã được tạo thành công.",
+                Data = createdSupportMessage
+            });
         }
         [HttpPost("admin-replies")]
         public async Task<IActionResult> CreateAdminReply([FromBody] AdminReplyDtos adminReplyDto)

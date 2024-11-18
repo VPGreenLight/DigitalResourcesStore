@@ -4,11 +4,11 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
 namespace DigitalResourcesStore.Models.SupportDtos
 {
     public class ContactRequestDtos
     {
+        public int Id { get; set; }
         [Required]
         [StringLength(255, ErrorMessage = "Tên đầy đủ không thể quá 255 ký tự.")]
         public string FullName { get; set; }
@@ -39,6 +39,8 @@ namespace DigitalResourcesStore.Models.SupportDtos
         [Required]
         [StringLength(1000, ErrorMessage = "Nội dung không thể quá 1000 ký tự.")]
         public string Content { get; set; }
-        public int? UserId { get; set; }
+        public bool? IsAccepted {  get; set; }
+        public bool? AdminReply {  get; set; }
+        //public int? UserId { get; set; }
     }
 }

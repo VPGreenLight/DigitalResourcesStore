@@ -9,6 +9,7 @@ namespace DigitalResourcesStore.Models.SupportDtos
 {
     public class MessageSupportDtos
     {
+        public int Id { get; set; }
         [Required]
         [StringLength(255, ErrorMessage = "Email không thể quá 255 ký tự.")]
         [EmailAddress(ErrorMessage = "Định dạng email không hợp lệ.")]
@@ -26,6 +27,8 @@ namespace DigitalResourcesStore.Models.SupportDtos
         [StringLength(1000, ErrorMessage = "Nội dung không thể quá 1000 ký tự.")]
         public string Content { get; set; } = null!;
         public bool IsProcessed { get; set; }
-        public int? UserId { get; set; }
+        public bool AdminReply { get; set; }
+        public string UserName {  get; set; }
+        //public int? UserId { get; set; }
     }
 }
