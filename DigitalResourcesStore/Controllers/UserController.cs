@@ -56,7 +56,7 @@ namespace DigitalResourcesStore.Controllers
             return await _userService.ChangePassword(id, request);
         }
 
-        [HttpGet("user")]
+        [HttpGet("me")]
         public async Task<ActionResult<UserDto>> GetUserFromToken()
         {
             var authHeader = HttpContext.Request.Headers["Authorization"].ToString();

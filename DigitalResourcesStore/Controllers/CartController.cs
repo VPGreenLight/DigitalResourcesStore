@@ -24,7 +24,7 @@ namespace DigitalResourcesStore.Controllers
         public async Task<IActionResult> Buy([FromBody] AddToCartDto model)
         {
             var result = await _cartService.Buy(HttpContext, model.ProductId, model.Quantity);
-            return result;
+            return Ok(result);
         }
 
         [HttpGet("cart-details")]
@@ -57,43 +57,44 @@ namespace DigitalResourcesStore.Controllers
         public async Task<IActionResult> Remove(int productId)
         {
             var result = await _cartService.RemoveFromCart(HttpContext, productId);
-            return result;
+            return Ok(result);
         }
 
         [HttpPost("increase-quantity/{productId}")]
         public async Task<IActionResult> IncreaseQuantity(int productId)
         {
             var result = await _cartService.IncreaseQuantity(HttpContext, productId);
-            return result;
+            return Ok(result);
         }
 
         [HttpPost("decrease-quantity/{productId}")]
         public async Task<IActionResult> DecreaseQuantity(int productId)
         {
             var result = await _cartService.DecreaseQuantity(HttpContext, productId);
-            return result;
+            return Ok(result);
         }
 
         [HttpPost("apply-voucher")]
         public async Task<IActionResult> ApplyVoucher(string code)
         {
             var result = await _cartService.ApplyVoucher(HttpContext, code);
-            return result;
+            return Ok(result);
         }
 
         [HttpPost("checkout")]
         public async Task<IActionResult> CheckOut()
         {
             var result = await _cartService.CheckOutAsync(HttpContext);
-            return result;
+            return Ok(result);
         }
 
         [HttpPost("cart-payment")]
         public async Task<IActionResult> CreateCartPayment()
         {
             var result = await _cartService.ProcessCartPaymentAsync(HttpContext);
-            return result;
+            return Ok(result);
         }
+
         [HttpGet("cart-payment-callback")]
         public async Task<IActionResult> CartPaymentCallback()
         {
