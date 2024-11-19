@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DigitalResourcesStore.Models.ProductDetailDtos;
 
 namespace DigitalResourcesStore.Models.ProductDtos
 {
@@ -38,6 +39,6 @@ namespace DigitalResourcesStore.Models.ProductDtos
         public bool? IsDelete { get; set; }
 
         public string? DeletedBy { get; set; }
-
+        public List<ProductDetail1> ProductDetails { get; set; }
     }
 }
