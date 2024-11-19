@@ -8,11 +8,11 @@ namespace DigitalResourcesStore.Models.OrderHistoryDtos
 {
     public class OrderHistoryDetailDto
     {
-        public int ProductDetailId { get; set; }
-        public int OrderHistoryId { get; set; }
-        public int CategoryId { get; set; }
+        public int Id { get; set; }
         public string ProductName { get; set; }
-        public string Serial { get; set; }
-        public string Code { get; set; }
+        public string? Serial { get; set; }
+        public string? Code { get; set; }
+        public int CategoryId { get; set; }
+        public int ProductDetailId { get; set; }
     }
 }
