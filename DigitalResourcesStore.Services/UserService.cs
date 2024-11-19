@@ -3,10 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using DigitalResourcesStore.EntityFramework.Models;
-using QuizApp.Models;
+using DigitalResourcesStore.Models;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using DigitalResourcesStore.Models.OrderHistoryDtos;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DigitalResourcesStore.Services
 {
@@ -19,6 +22,11 @@ namespace DigitalResourcesStore.Services
         Task<bool> Delete(int id);
         Task<bool> UpdateUserBalance(int userId, decimal amount);
         Task<bool> ChangePassword(int userId, ChangePasswordDto model);
+
+        Task<List<DepositHistory>> GetDepositHistoryByUserIdAsync(int userId);
+        Task<List<DepositHistory>> GetAllDepositHistoriesAsync();
+        Task<List<OrderHistoryDto>> GetTransactionHistoryByUserIdAsync(int userId);
+        Task<List<OrderHistoryDto>> GetAllTransactionHistoriesAsync();
     }
 
     public class UserService : IUserService
@@ -220,6 +228,84 @@ namespace DigitalResourcesStore.Services
             }
             return byte2String.ToString();
         }
+
+        public async Task<List<DepositHistory>> GetDepositHistoryByUserIdAsync(int userId)
+        {
+            return await _context.DepositHistories
+                .Where(d => d.UserId == userId)
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<List<DepositHistory>> GetAllDepositHistoriesAsync()
+        {
+            return await _context.DepositHistories
+                .Select(d => new DepositHistory
+                {
+                    Id = d.Id,
+                    UserId = d.UserId,
+                    Money = d.Money,
+                    Description = d.Description,
+                    CreatedAt = d.CreatedAt,
+                    IsSuccess = d.IsSuccess
+                })
+                .ToListAsync();
+        }
+        public async Task<List<OrderHistoryDto>> GetTransactionHistoryByUserIdAsync(int userId)
+        {
+            var orderHistories = await _context.OrderHistories
+                .Where(oh => oh.UserId == userId)
+                .Include(oh => oh.OrderHistoryDetails) // Bao gồm chi tiết đơn hàng
+                .ToListAsync();
+
+            return orderHistories.Select(oh => new OrderHistoryDto
+            {
+                Id = oh.Id,
+                UserId = oh.UserId,
+                ProductId = oh.ProductId,
+                ProductName = oh.ProductName,
+                Date = oh.Date,
+                Quantity = oh.Quantity,
+                TotalPrice = oh.TotalPrice,
+                OrderDetails = oh.OrderHistoryDetails.Select(od => new OrderHistoryDetailDto
+                {
+                    Id = od.Id,
+                    ProductName = od.ProductName,
+                    Serial = od.Serial,
+                    Code = od.Code,
+                    CategoryId = od.CategoryId,
+                    ProductDetailId = od.ProductDetailId
+                }).ToList()
+            }).ToList();
+        }
+
+        public async Task<List<OrderHistoryDto>> GetAllTransactionHistoriesAsync()
+        {
+            var orderHistories = await _context.OrderHistories
+                .Include(oh => oh.OrderHistoryDetails) // Bao gồm chi tiết đơn hàng
+                .ToListAsync();
+
+            return orderHistories.Select(oh => new OrderHistoryDto
+            {
+                Id = oh.Id,
+                UserId = oh.UserId,
+                ProductId = oh.ProductId,
+                ProductName = oh.ProductName,
+                Date = oh.Date,
+                Quantity = oh.Quantity,
+                TotalPrice = oh.TotalPrice,
+                OrderDetails = oh.OrderHistoryDetails.Select(od => new OrderHistoryDetailDto
+                {
+                    Id = od.Id,
+                    ProductName = od.ProductName,
+                    Serial = od.Serial,
+                    Code = od.Code,
+                    CategoryId = od.CategoryId,
+                    ProductDetailId = od.ProductDetailId
+                }).ToList()
+            }).ToList();
+        }
+
 
     }
 }

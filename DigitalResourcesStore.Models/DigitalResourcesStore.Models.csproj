@@ -7,8 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="OrderDtos\**" />
+    <EmbeddedResource Remove="OrderDtos\**" />
+    <None Remove="OrderDtos\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="AuthDtos\CategoryDtos\" />
-    <Folder Include="OrderDtos\" />
   </ItemGroup>
 
 </Project>

@@ -98,39 +98,5 @@ namespace DigitalResourcesStore.Controllers
                 return StatusCode(500, new { Message = "An error occurred while processing the payment callback." });
             }
         }
-
-
-
-
-        [HttpGet("history/{id}")]
-        public async Task<IActionResult> GetDepositHistory(int id)
-        {
-            var depositHistory = await _depositService.GetDepositHistoryAsync(id);
-            if (depositHistory == null)
-                return NotFound(new { Message = "Deposit history not found." });
-
-            return Ok(depositHistory);
-        }
-
-        [HttpGet("history")]
-        public async Task<IActionResult> GetAllDepositHistories()
-        {
-            var depositHistories = await _depositService.GetAllDepositHistoriesAsync();
-            return Ok(depositHistories);
-        }
-
-        [HttpPost("update-history/{id}")]
-        public async Task<IActionResult> UpdateDepositHistory(int id, [FromQuery] bool isSuccess)
-        {
-            try
-            {
-                await _depositService.UpdateDepositHistoryAsync(id, isSuccess);
-                return Ok(new { Message = "Deposit history updated successfully." });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { Message = ex.Message });
-            }
-        }
     }
 }

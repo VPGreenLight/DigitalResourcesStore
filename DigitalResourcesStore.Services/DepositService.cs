@@ -16,9 +16,6 @@ namespace DigitalResourcesStore.Services
     {
         Task<string> ProcessRechargeAsync(HttpContext httpContext, DepositDto deposit, int userId);
         Task<string> HandlePaymentCallbackAsync(IQueryCollection query, int userId);
-        Task<DepositHistory> GetDepositHistoryAsync(int depositHistoryId);
-        Task<List<DepositHistory>> GetAllDepositHistoriesAsync();
-        Task UpdateDepositHistoryAsync(int depositHistoryId, bool isSuccess);
         Task UpdateUserBalanceAsync(int userId, decimal amount);
     }
 
@@ -77,7 +74,6 @@ namespace DigitalResourcesStore.Services
             }
 
             // Lấy thông tin từ query
-            var transactionId = query["vnp_TransactionNo"];
             var amount = decimal.Parse(query["vnp_Amount"]) / 100; // Convert từ VNPay (đơn vị VNĐ)
 
             // Cập nhật số dư cho user
@@ -85,7 +81,9 @@ namespace DigitalResourcesStore.Services
 
             // Lưu trạng thái giao dịch
             var depositHistory = await _context.DepositHistories
-                .FirstOrDefaultAsync(d => d.Id == transactionId);
+               .Where(d => d.UserId == userId) // Lọc theo UserId
+               .OrderByDescending(d => d.CreatedAt) // Lấy bản ghi mới nhất
+               .FirstOrDefaultAsync();
 
             if (depositHistory != null)
             {
@@ -97,32 +95,6 @@ namespace DigitalResourcesStore.Services
             return "Payment successful.";
         }
 
-
-
-        public async Task<DepositHistory> GetDepositHistoryAsync(int depositHistoryId)
-        {
-            return await _context.DepositHistories.FindAsync(depositHistoryId);
-        }
-
-        public async Task<List<DepositHistory>> GetAllDepositHistoriesAsync()
-        {
-            return await _context.DepositHistories.ToListAsync();
-        }
-
-        public async Task UpdateDepositHistoryAsync(int depositHistoryId, bool isSuccess)
-        {
-            var depositHistory = await GetDepositHistoryAsync(depositHistoryId);
-            if (depositHistory != null)
-            {
-                depositHistory.IsSuccess = isSuccess;
-                _context.DepositHistories.Update(depositHistory);
-                await _context.SaveChangesAsync();
-            }
-            else
-            {
-                throw new Exception("Deposit history not found.");
-            }
-        }
 
         public async Task UpdateUserBalanceAsync(int userId, decimal amount)
         {

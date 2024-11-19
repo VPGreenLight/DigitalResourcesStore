@@ -1,7 +1,7 @@
 ﻿using DigitalResourcesStore.Models.UserDtos;
 using DigitalResourcesStore.Services;
 using Microsoft.AspNetCore.Mvc;
-using QuizApp.Models;
+using DigitalResourcesStore.Models;
 
 namespace DigitalResourcesStore.Controllers
 {
@@ -74,6 +74,124 @@ namespace DigitalResourcesStore.Controllers
             if (user == null) return NotFound();
 
             return Ok(user);
+        }
+
+        [HttpGet("deposit-history")]
+        public async Task<IActionResult> GetMyDepositHistory()
+        {
+            // Lấy token từ header Authorization
+            var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+            var token = authHeader?.Replace("Bearer ", "");
+
+            Console.WriteLine($"Token nhận được: {token}");
+
+            if (string.IsNullOrEmpty(token)) return Unauthorized();
+
+            // Giải mã token để lấy userId
+            var userId = _authService.GetUserIdFromToken(token);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            Console.WriteLine($"User ID từ token: {userId}");
+
+            // Lấy lịch sử giao dịch dựa trên userId
+            var depositHistories = await _userService.GetDepositHistoryByUserIdAsync(int.Parse(userId));
+            if (depositHistories == null || !depositHistories.Any())
+            {
+                return NotFound(new { Message = "No deposit history found for this user." });
+            }
+
+            return Ok(depositHistories);
+        }
+
+        [HttpGet("all-deposit-history")]
+        public async Task<IActionResult> GetAllDepositHistories()
+        {
+            // Lấy token từ header Authorization
+            var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+            var token = authHeader?.Replace("Bearer ", "");
+
+            Console.WriteLine($"Token nhận được: {token}");
+
+            if (string.IsNullOrEmpty(token)) return Unauthorized();
+
+            // Giải mã token để lấy userId
+            var userId = _authService.GetUserIdFromToken(token);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            // Kiểm tra quyền hạn (ví dụ: admin)
+            var user = await _userService.GetById(int.Parse(userId));
+            if (user == null || user.RoleId != 1) // Replace "Role" if different property is used
+            {
+                return Forbid("Only admins can view all deposit histories.");
+            }
+
+            // Lấy tất cả lịch sử giao dịch
+            var depositHistories = await _userService.GetAllDepositHistoriesAsync();
+            if (depositHistories == null || !depositHistories.Any())
+            {
+                return NotFound(new { Message = "No deposit histories found." });
+            }
+
+            return Ok(depositHistories);
+        }
+
+        [HttpGet("order-history")]
+        public async Task<IActionResult> GetMyOrderHistory()
+        {
+            // Lấy token từ header Authorization
+            var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+            var token = authHeader?.Replace("Bearer ", "");
+
+            Console.WriteLine($"Token nhận được: {token}");
+
+            if (string.IsNullOrEmpty(token)) return Unauthorized();
+
+            // Giải mã token để lấy userId
+            var userId = _authService.GetUserIdFromToken(token);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            Console.WriteLine($"User ID từ token: {userId}");
+
+            // Lấy lịch sử giao dịch dựa trên userId
+            var depositHistories = await _userService.GetTransactionHistoryByUserIdAsync(int.Parse(userId));
+            if (depositHistories == null || !depositHistories.Any())
+            {
+                return NotFound(new { Message = "No deposit history found for this user." });
+            }
+
+            return Ok(depositHistories);
+        }
+
+        [HttpGet("all-order-history")]
+        public async Task<IActionResult> GetAllOrderHistories()
+        {
+            // Lấy token từ header Authorization
+            var authHeader = HttpContext.Request.Headers["Authorization"].ToString();
+            var token = authHeader?.Replace("Bearer ", "");
+
+            Console.WriteLine($"Token nhận được: {token}");
+
+            if (string.IsNullOrEmpty(token)) return Unauthorized();
+
+            // Giải mã token để lấy userId
+            var userId = _authService.GetUserIdFromToken(token);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            // Kiểm tra quyền hạn (ví dụ: admin)
+            var user = await _userService.GetById(int.Parse(userId));
+            if (user == null || user.RoleId != 1) // Replace "Role" if different property is used
+            {
+                return Forbid("Only admins can view all deposit histories.");
+            }
+
+            // Lấy tất cả lịch sử giao dịch
+            var depositHistories = await _userService.GetAllTransactionHistoriesAsync();
+            if (depositHistories == null || !depositHistories.Any())
+            {
+                return NotFound(new { Message = "No deposit histories found." });
+            }
+
+            return Ok(depositHistories);
         }
     }
 }

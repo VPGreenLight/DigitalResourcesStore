@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using DigitalResourcesStore.EntityFramework.Models;
-using QuizApp.Models;
+using DigitalResourcesStore.Models;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;

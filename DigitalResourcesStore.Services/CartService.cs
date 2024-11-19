@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace DigitalResourcesStore.Services
@@ -26,6 +27,8 @@ namespace DigitalResourcesStore.Services
         Task<JsonResult> ApplyVoucher(HttpContext httpContext, string code);
         Task<JsonResult> CheckOutAsync(HttpContext httpContext);
         Task ProcessOrderAsync(int userId, List<CartItemDto> cart, decimal discountedTotal, CancellationToken cancellationToken);
+        Task<JsonResult> ProcessCartPaymentAsync(HttpContext httpContext);
+        Task<string> HandleCartPaymentCallbackAsync(IQueryCollection query, int userId, HttpContext httpContext);
         Task PopulateCartItemDetails(CartItemDto cartItem);
     }
     public class CartService : ICartService
@@ -33,12 +36,14 @@ namespace DigitalResourcesStore.Services
         private readonly DigitalResourcesStoreDbContext _dbContext;
         private readonly ILogger<CartService> _logger;
         private readonly IAuthService _authService; // Service để xử lý token và lấy userId từ token
+        private readonly IVnPayCartService _vnPayCartService;
 
-        public CartService(DigitalResourcesStoreDbContext dbContext, ILogger<CartService> logger, IAuthService authService)
+        public CartService(DigitalResourcesStoreDbContext dbContext, ILogger<CartService> logger, IAuthService authService, IVnPayCartService vnPayCartService)
         {
             _dbContext = dbContext;
             _logger = logger;
             _authService = authService;
+            _vnPayCartService = vnPayCartService;
         }
 
         private string GetUserIdFromToken(HttpRequest request)
@@ -494,6 +499,84 @@ namespace DigitalResourcesStore.Services
                 cartItem.Price = product.Price;
             }
         }
+
+        public async Task<JsonResult> ProcessCartPaymentAsync(HttpContext httpContext)
+        {
+            // Lấy thông tin UserId từ token
+            var userId = GetUserIdFromToken(httpContext.Request);
+
+            var user = await _dbContext.Users.FindAsync(int.Parse(userId));
+            if (user == null)
+            {
+                return new JsonResult(new { success = false, message = "Người dùng không tồn tại." });
+            }
+
+            // Lấy thông tin giỏ hàng
+            var cartDetails = await GetCartDetails(int.Parse(userId));
+            var cart = cartDetails.Items;
+
+            if (cart == null || !cart.Any())
+            {
+                return new JsonResult(new { success = false, message = "Giỏ hàng trống." });
+            }
+
+            var discountedTotalStr = httpContext.Session.GetString("DiscountedTotal");
+            decimal discountedTotal = string.IsNullOrEmpty(discountedTotalStr)
+                ? cart.Sum(item => item.Price * item.Quantity)
+                : decimal.Parse(discountedTotalStr);
+
+            string id = DepositService.GenerateCodeDeposit();
+            // Tạo thông tin thanh toán
+            var paymentRequest = new VnPaymentCartRequestModel
+            {
+                Id = id, // Tạo ID giao dịch
+                Amount = (int)(discountedTotal * 100000), // Số tiền theo đơn vị VND x100
+                CreatedDate = DateTime.Now,
+                Description = "Thanh toán đơn hàng"
+            };
+
+            // Tạo URL thanh toán
+            var paymentUrl = _vnPayCartService.CreatePaymentUrl(httpContext, paymentRequest);
+
+            return new JsonResult(new { success = true, paymentUrl });
+        }
+
+        public async Task<string> HandleCartPaymentCallbackAsync(IQueryCollection query, int userId, HttpContext httpContext)
+        {
+            // Thực thi callback và kiểm tra kết quả
+            var response = _vnPayCartService.PaymentExecute(query);
+
+            if (!response.Success || response.VnPayReponseCode != "00")
+            {
+                return $"Payment failed with response code {response.VnPayReponseCode}.";
+            }
+
+            // Lấy giỏ hàng từ session hoặc database
+            var cartDetails = await GetCartDetails(userId);
+            var cart = cartDetails.Items;
+
+            if (cart == null || !cart.Any())
+            {
+                return "Giỏ hàng trống.";
+            }
+
+            var discountedTotalStr = httpContext.Session.GetString("DiscountedTotal");
+            decimal discountedTotal = string.IsNullOrEmpty(discountedTotalStr)
+                ? cart.Sum(item => item.Price * item.Quantity)
+                : decimal.Parse(discountedTotalStr);
+
+            // Xử lý đơn hàng
+            await ProcessOrderAsync(userId, cart, discountedTotal, CancellationToken.None);
+
+            // Xóa giỏ hàng sau khi thanh toán thành công
+            var cartOrders = _dbContext.Orders.Where(o => o.UserId == userId);
+            _dbContext.Orders.RemoveRange(cartOrders);
+            await _dbContext.SaveChangesAsync();
+
+            return "Payment successful.";
+        }
+
+
     }
 
     public static class SessionHelper

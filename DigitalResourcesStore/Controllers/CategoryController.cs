@@ -2,7 +2,7 @@
 using DigitalResourcesStore.Models.ProductDtos;
 using DigitalResourcesStore.Services;
 using Microsoft.AspNetCore.Mvc;
-using QuizApp.Models;
+using DigitalResourcesStore.Models;
 
 namespace DigitalResourcesStore.Controllers
 {
