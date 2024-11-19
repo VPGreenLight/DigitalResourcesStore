@@ -41,13 +41,24 @@ namespace DigitalResourcesStore.Services
             var product = await _db.Products
                 .Include(p => p.Category)
                 .Include(p => p.Brand)
-                .FirstAsync(c => c.Id == id);
+                .Include(p => p.ProductDetails)  // Bao gồm ProductDetails
+                .FirstOrDefaultAsync(c => c.Id == id);
+
             if (product == null)
             {
                 throw new ArgumentException("Sản phẩm không hợp lệ");
-            };
+            }
 
-            return new ProductDtos
+            var productDetails = product.ProductDetails.Select(pd => new ProductDetail1
+            {
+                Id = pd.Id,
+                Serial = pd.Serial,
+                Code = pd.Code,
+                ProductId = pd.ProductId,
+                IsDelete = pd.IsDelete
+            }).ToList();  // Chuyển các chi tiết sản phẩm thành danh sách DTO
+
+            var productDto = new ProductDtos
             {
                 Id = product.Id,
                 Name = product.Name,
@@ -65,9 +76,12 @@ namespace DigitalResourcesStore.Services
                 DeletedAt = product.DeletedAt,
                 IsDelete = product.IsDelete,
                 DeletedBy = product.DeletedBy,
-
+                ProductDetails = productDetails  // Thêm ProductDetails vào DTO
             };
+
+            return productDto;
         }
+
         public async Task<PagedResponse<ProductDtos>> Get(QueryProductDto query)
         {
             var productsQuery = _db.Products
